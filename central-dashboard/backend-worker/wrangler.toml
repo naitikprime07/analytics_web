@@ -1,0 +1,21 @@
+name = "central-analytics-api"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# Cloudflare-native analytics API backend.
+# NO D1, NO R2, NO database - data fetch thay Cloudflare GraphQL/REST API mathi.
+#
+# Secrets (kabhi repo/frontend ma navi - wrangler secret put thi aapelo):
+#   npx wrangler secret put CF_ACCOUNT_ID     # dash.cloudflare.com right sidebar
+#   npx wrangler secret put CF_API_TOKEN      # niche na permissions sathe token
+#
+# Optional var:
+[vars]
+# "true" hoy to backend darek request ma Cloudflare Access header joje (auth backend thi nahi, Access thi thay).
+REQUIRE_ACCESS = "true"
+# Analytics queries nu cache TTL (seconds). Resource lists aa thi moti cache thay shake.
+# Live mode short polling kare etle TTL motu rakhiye ke poll par fresh data aave.
+CACHE_TTL = "30"
+
+# Custom domain lagavva hoy to Cloudflare dashboard -> Triggers -> Custom Domain,
+# ane aa Worker ne Cloudflare Access (Zero Trust) thi protect karvo.
