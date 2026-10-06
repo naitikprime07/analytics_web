@@ -8,14 +8,11 @@ custom-tracked numbers never mix with Cloudflare-native analytics.
 - **Store:** Workers Analytics Engine dataset `user_journey` (auto-creates on first write).
 - **Ingest:** site snippet → `POST /api/track` (public) → `writeEvent()` → AE.
 - **Read:** dashboard → AE SQL API → Journey / Sessions / Visited Pages / Navigation / Visitors.
-- **Rollout — V1 (preferred):** embed the manual [`tracking/analytics.js`](./tracking/analytics.js)
-  `<script>` on each site you want to measure.
-- **Rollout — Phase 2 (optional):** `injector-worker` stamps the identical snippet onto zones at
-  the edge (no site edits). It is a convenience, **not** the foundation. Its guarantees are
-  precise and testable (not blanket "safe" claims): it modifies **only `GET` + `2xx` +
-  `text/html`** responses, leaves redirects/3xx, 4xx/5xx, JSON/APIs, downloads, video and
-  binary **untouched**, and **fails open** (returns the original response if injection can't be
-  applied) so the injector does not break the origin response. See §3 Phase 2 and §5.
+- **Rollout (the only method):** embed the manual [`tracking/analytics.js`](./tracking/analytics.js)
+  `<script>` on each site you want to measure (one line per site — see §3 Step 2). There is
+  deliberately **no edge auto-injector**: a Worker route cannot attach to a hostname already
+  served by Pages or another Worker's custom domain, so the per-site embed is the reliable,
+  no-harm path.
 
 ```
 Visitor ──► [analytics.js snippet]  ──POST /api/track──►  backend Worker ──► AE dataset (user_journey)
@@ -112,9 +109,8 @@ The correct model:
 
 ## 2. Prerequisites
 
-- Backend Worker secrets set: `CF_API_TOKEN` (Account Analytics Read), `CF_ACCOUNT_ID`.
-- A Cloudflare API token per account with **Workers Scripts: Edit** and **Workers Routes: Edit**
-  for deploying the injector in that account.
+- Backend Worker secrets set: `CF_API_TOKEN` (Account Analytics Read), `CF_ACCOUNT_ID`,
+  and the `DASHBOARD_PASSWORD` Basic Auth secret.
 - AE binding + dataset already present in `backend-worker/wrangler.toml`:
   ```toml
   [[analytics_engine_datasets]]
@@ -126,8 +122,7 @@ The correct model:
 
 ## 3. Rollout plan (in order)
 
-The **foundation is V1** (Step 0–2): deploy the backend and embed `analytics.js` manually.
-The **injector is an optional Phase 2** (Step 3–5) for edge auto-inject at scale.
+Steps 0–2 are the whole rollout: deploy the backend, then embed `analytics.js` on each site.
 
 ### Step 0 — Local write→read round-trip (no production changes)
 Run the backend with `--remote` so AE writes land in the real account and are queryable:
@@ -160,123 +155,68 @@ npx --yes wrangler secret put CF_API_TOKEN
 npx --yes wrangler deploy
 ```
 Note the URL, e.g. `https://central-analytics-api.<your-sub>.workers.dev`. This is the single
-`/api/track` target for **all** sites/injectors (data from every account pools into one dataset).
+`/api/track` target for **all** sites (data from every account pools into one dataset).
 
-### Step 2 — (V1) Embed `analytics.js` on each site
-Add one tag per site you want to measure (e.g. before `</head>`):
+### Step 2 — Embed `analytics.js` on each site
+Add one tag per site you want to measure (e.g. before `</head>`). The snippet is **zero-config**:
+it derives the `/api/track` endpoint from its own origin and uses the page hostname as the
+project, so a single line is all that's needed:
 ```html
-<script src="https://<your-worker>/tracking/analytics.js"
-        data-endpoint="https://central-analytics-api.<your-sub>.workers.dev/api/track"
-        data-project="escavello.com" defer></script>
+<script src="https://central-analytics-api.<your-sub>.workers.dev/analytics.js" defer></script>
 ```
-`data-project` is a stable grouping label (defaults to the hostname); the backend resolves the
-tracked hostname → its project/account across both accounts, so the dashboard filters work.
+Optionally override grouping with `data-project="..."` and the target with `data-endpoint="..."`.
+The backend resolves the tracked hostname → its project/account, so the dashboard filters work.
 
 ---
 
-### Phase 2 (optional) — edge auto-inject so you don't edit each site
-
-### Step 3 — Set `TRACK_ENDPOINT` in the injector
-Edit `central-dashboard/injector-worker/wrangler.toml`:
-```toml
-[vars]
-TRACK_ENDPOINT = "https://central-analytics-api.<your-sub>.workers.dev/api/track"
-```
-
-### Step 4 — Deploy the injector **once per account** + attach zone routes
-Cloudflare **Worker Routes are account-scoped** — a Worker can only route zones in its own
-account. Your zones live in **two** accounts, so deploy the injector in **each** account (same
-code + same `TRACK_ENDPOINT`), using that account's token.
-
-**Route pattern (important — Cloudflare Worker Routes match the HOST exactly):**
-`example.com/*` matches **only** the apex host `example.com`; it does **NOT** match
-`www.example.com` or any other subdomain. To cover both the apex and all subdomains of a zone,
-create **two** Custom Routes per zone:
-
-```
-example.com/*        # apex only
-*.example.com/*      # all subdomains (www., app., …)
-```
-
-Do **NOT** use `*example.com/*` — the leading wildcard also matches unrelated hosts whose names
-*end in* your domain (e.g. `notexample.com`), which is unsafe. Use only the two explicit patterns
-above; do not create overlapping/duplicate routes.
-
-**Account: Prime-2 — 12 zones** (deploy the injector here, then add TWO Custom Routes per zone:
-`<apex>/*` and `*.<apex>/*`):
-```
-escavello.com   finudge.site   gstvoyana.com   healnest.site   moduvix.com   playwizzy.site
-prodkick.site   utilnexa.site   wizzogame.site   xixvideohub.com   zenflora.fun   zevixa.site
-```
-*(the names above are the zone apexes from `/api/projects`; for each, create the apex route
-`<apex>/*` and the subdomain route `*.<apex>/*.)*
-
-**Account: Server@primesoftechs — 4 zones:**
-```
-cashloanplatform.com   financeloanportal.com   financequizapp.com   financequizword.site
-```
-
-The injector only touches **2xx HTML `GET`** responses; redirects (3xx), error pages, and
-non-HTML bodies (APIs, downloads, video, binary) pass through **untouched**. If injection cannot
-be safely applied it **fails open** (returns the original response unchanged); the injector is
-designed not to break the origin response.
-
-### Step 5 — Live verification
-1. Open any zone site → **View page source** → you should see the injected `<script>` containing
-   `cfj_vid` before `</head>`.
-2. Browse a couple of pages, wait **5–10 minutes**.
-3. Dashboard → **Journey / Sessions / Visited Pages / Navigation / Visitors** should show real
-   rows. Filter by Account or Project to confirm the hostname→project/account resolution works;
-   click a Visitor to see their individual journey (events grouped into sessions).
+### Step 3 — Verify the embed is collecting data
+1. Open a tracked site → **View page source** → the `<script .../analytics.js>` tag is present.
+2. In DevTools → Network, a `POST /api/track` returning **204** fires on navigation.
+3. Browse a couple of pages, wait **~2–3 min** (AE ingestion is async), then open the dashboard →
+   **Journey / Sessions / Visited Pages / Navigation / Visitors** to see real rows. Filter by
+   Project (hostname) to confirm resolution; click a Visitor for their individual journey.
 
 ---
 
-## 4. Pages (4) and Workers (2) — not covered by zone Routes
+## 4. Pages and Worker-served sites — same embed, placed differently
 
-Routes only intercept **zone/DNS traffic**, so they can't touch responses already rendered by a
-**Pages** project or another **Worker**. Recommendation for this 4+2 scope:
+There is no edge auto-injector (a Worker route can't attach to a hostname already served by
+Pages or another Worker's custom domain). For every project you own, add the **same one-line
+`<script>`** from Step 2 — only *where* you put it differs:
 
-| Type | Projects | Recommended method | Why |
-|---|---|---|---|
-| **Workers** | `vidshare`, `xixvideodownloader` | **HTMLRewriter wrapper** (option b) | Simplest: 2 projects, you already own the Worker code — wrap its response with the same snippet. |
-| **Pages** | `finvexa-subgame`, `financequizhub`, `financeloanplatform`, `finvexafinance` | **Pages Functions middleware** (better than build-time editing) | One `_middleware.js` per project reuses the shared snippet; no per-file / per-framework build edits across 4 repos. |
+| Type | Where to add the tag |
+|---|---|
+| **Static / HTML** | Directly in the shared HTML head (or the template that renders every page). |
+| **React / SPA** | In `index.html` (the app shell) — one place covers all routes. |
+| **Worker-served pages** | In the server-rendered layout/template function (one insertion covers all dynamic pages). |
+| **Pages projects** | In the project's HTML shell, or a Pages Functions `onRequest` that appends the tag to `text/html` responses. |
 
-Ready-to-use templates (single shared snippet lives in `injector-worker/src/snippet.js`):
-- Workers: [`injector-worker/examples/workers-wrapper.js`](./injector-worker/examples/workers-wrapper.js)
-- Pages: [`injector-worker/examples/pages-middleware.js`](./injector-worker/examples/pages-middleware.js)
+This is exactly how `xixvideohub.com` (a Worker) was instrumented: one `<script>` line added to
+its shared `layout()` + static HTML heads. API / non-HTML / error responses are never touched —
+the tag only runs inside real browser pages.
 
-For each, set `TRACK_ENDPOINT` (Worker `[vars]` or Pages environment variable) and copy
-`src/snippet.js` into that project. Non-GET / non-HTML / error responses pass through untouched.
-
-> Note: Pages/Workers custom domains must resolve as the tracked hostname for the dashboard's
-> project filter to match them; the backend already groups subdomains under their apex.
+> Note: the dashboard groups by the tracked hostname (`location.hostname`), so a project's custom
+> domain must be the hostname visitors actually load for its rows to match.
 
 ---
 
-## 5. Content-Security-Policy (CSP) — verify per zone before deploying
+## 5. Content-Security-Policy (CSP) — only relevant if a site sends one
 
-**What the injectors actually do (implementation, not assumption):**
-- The **default injector** (`injector-worker/src/index.js`) only injects an inline `<script>`.
-  It does **not** read, preserve, or modify any `Content-Security-Policy` header. If a zone's
-  CSP blocks inline scripts, the browser simply skips the script — the page still loads, only
-  tracking is lost (fail-safe; the origin response is not broken).
-- The **nonce variant** (`injector-worker/examples/injector-csp-nonce.js`) is the only path that
-  touches CSP. For a zone that *does* send a CSP it mints a per-response nonce, appends
-  `'nonce-…'` to `script-src` (or `default-src` if there is no `script-src`), and adds the
-  `/api/track` origin to `connect-src` (or `default-src`) — **preserving every other directive**
-  and leaving the header untouched when neither directive exists (it does not weaken policy).
-  Deploy it only where a CSP is actually present.
+The snippet is an **external** `<script src="https://<worker>/analytics.js">`, not an inline
+script, so a CSP that only blocks `unsafe-inline` does **not** stop it. It is blocked only when
+the site's CSP restricts `script-src`/`connect-src` to specific origins. In that case allowlist
+the Worker origin in **both**:
 
-**Do not assume a zone's CSP state — probe each zone's current header first** (a site owner can
-add or change a CSP at any time). This guide deliberately does **not** assert a cached
-"all zones have no CSP" result:
+```
+script-src  ... https://central-analytics-api.<your-sub>.workers.dev
+connect-src ... https://central-analytics-api.<your-sub>.workers.dev
+```
+
+Probe a site's current header before assuming (a CSP can change anytime):
 ```bash
-for d in escavello.com ... financequizword.site; do
-  echo "== $d =="; curl -sI "https://$d/" | grep -i "content-security-policy" || echo "(no CSP header)"
-done
+curl -sI https://<site>/ | grep -i content-security-policy || echo "(no CSP header)"
 ```
-Zones with **no** CSP header → the default injector's inline script runs. Zones **with** a
-strict CSP → use the nonce variant.
+No CSP header (most of these sites) → nothing to do; the tag loads and posts freely.
 
 ---
 

@@ -71,12 +71,6 @@ Account resource: tamaru account. Token ek vaar j dekhay - copy kari ne rakhjo.
 > account's Worker request/error counts show as "Not available". Zone/Pages analytics are
 > unaffected (they resolve through each zone's unique `zoneTag`).
 
-> **Injector (Phase 2) deploy mate extra permissions:** the dashboard token above is
-> **read-only**. To *deploy* the `injector-worker` and attach it as a zone route you need,
-> per account, a token with **Account ▸ Workers Scripts: Edit** and **Zone ▸ Workers Routes: Edit**
-> (these are deploy-time only and are NOT used by the running dashboard). Keep them separate
-> from the read-only dashboard token.
-
 > **Analytics Engine auth (important):** writing User Journey events with
 > `writeDataPoint()` is authorized by the Worker's `[[analytics_engine_datasets]]`
 > **binding at deploy time** - it does **not** use `CF_API_TOKEN`. Cloudflare has **no
@@ -311,10 +305,10 @@ Full rollout guide + code: **[`USER-JOURNEY.md`](./USER-JOURNEY.md)**.
 - **Dashboard window:** dashboard read APIs expose a **rolling 30-day window** (a read-side
   query clamp). Analytics Engine itself may retain data longer; we never claim the data is
   physically deleted after 30 days.
-- **Deployables:** **V1 (preferred) = the manual `tracking/analytics.js` embed** (one
-  `<script>` per site). The `injector-worker/` edge auto-inject is an **optional Phase 2**
-  convenience (no site edits) - it uses the identical event model via `src/snippet.js` and
-  only injects into **2xx HTML** (never redirects, errors, non-HTML, APIs, or downloads).
+- **Deployables:** the **manual `tracking/analytics.js` embed** (one `<script>` per site,
+  zero-config). There is **no edge auto-injector** — a Worker route cannot attach to a hostname
+  already served by Pages or another Worker's custom domain, so per-site embed is the reliable,
+  no-harm method (see [`USER-JOURNEY.md`](./USER-JOURNEY.md) §3–4).
 - **API envelope:** dashboard reads return `{"success":true, ...data}`; errors return
   `{"success":false,"error":"..."}`. `/api/track` is **public** (validates server-side, keeps
   its `ALLOWED_ORIGINS` check) and is exempt from auth (README §6); the read APIs stay behind

@@ -1,9 +1,8 @@
 /**
- * User Journey tracking snippet - manual embed (V1 preferred path).
+ * User Journey tracking snippet - the manual embed (the only rollout path).
  * Drop this on each site you want to measure. It POSTs events to the central
  * Worker's public /api/track endpoint, which writes to Workers Analytics Engine
- * (dataset: user_journey). The edge injector (../injector-worker) uses the
- * exact same event model via src/snippet.js.
+ * (dataset: user_journey).
  *
  * Install (one <script> tag per site, e.g. before </head>):
  *   <script src="https://<your-worker>/tracking/analytics.js"
