@@ -3,26 +3,27 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/client.js";
 import { useFiltersFromLocation } from "../App.jsx";
 import { LiveBadge } from "../lib/live.jsx";
+import Icon from "./icons.jsx";
 
 const FiltersContext = createContext({});
 export const useFilters = () => useContext(FiltersContext);
 
 const NAV = [
-  ["Dashboard", "/"],
-  ["Projects", "/projects"],
-  ["Domains", "/domains"],
-  ["Traffic", "/traffic"],
-  ["Countries", "/countries"],
-  ["Requests", "/requests"],
-  ["Bandwidth", "/bandwidth"],
-  ["Workers", "/workers"],
-  ["Pages", "/pages"],
-  ["Errors", "/errors"],
-  ["Journey", "/journey"],
-  ["Sessions", "/sessions"],
-  ["Visitors", "/visitors"],
-  ["Visited Pages", "/visited-pages"],
-  ["Navigation", "/flow"],
+  ["Dashboard", "/", "dashboard"],
+  ["Projects", "/projects", "projects"],
+  ["Domains", "/domains", "domains"],
+  ["Traffic", "/traffic", "traffic"],
+  ["Countries", "/countries", "countries"],
+  ["Requests", "/requests", "requests"],
+  ["Bandwidth", "/bandwidth", "bandwidth"],
+  ["Workers", "/workers", "workers"],
+  ["Pages", "/pages", "pages"],
+  ["Errors", "/errors", "errors"],
+  ["Journey", "/journey", "journey"],
+  ["Sessions", "/sessions", "sessions"],
+  ["Visitors", "/visitors", "visitors"],
+  ["Visited Pages", "/visited-pages", "visited"],
+  ["Navigation", "/flow", "navigation"],
 ];
 
 const PRESETS = [
@@ -45,6 +46,14 @@ export default function Layout() {
   const [tracked, setTracked] = useState([]);
   const [account, setAccount] = useState(null);
   const [loadErr, setLoadErr] = useState("");
+
+  // collapsible sidebar (icon rail <-> full). Persist the choice across reloads.
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem("cfj_sidebar") === "collapsed"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("cfj_sidebar", collapsed ? "collapsed" : "expanded"); } catch {}
+  }, [collapsed]);
 
   useEffect(() => {
     let alive = true;
@@ -115,21 +124,44 @@ export default function Layout() {
   return (
     <FiltersContext.Provider value={filters}>
       <div className="shell">
-        <aside className="sidebar">
-          <div className="brand">
-            <span className="dot" /> Cloudflare Analytics
+        <aside className={"sidebar" + (collapsed ? " collapsed" : "")}>
+          <div className="sidehead">
+            <div className="brand">
+              <span className="dot" />
+              <span className="navlabel">Cloudflare Analytics</span>
+            </div>
+            <button
+              type="button"
+              className="side-toggle"
+              onClick={() => setCollapsed((c) => !c)}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-expanded={!collapsed}
+            >
+              <Icon name={collapsed ? "chevronR" : "chevronL"} size={18} />
+            </button>
           </div>
           <nav>
-            {NAV.map(([label, to]) => (
-              <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => "navitem" + (isActive ? " active" : "")}>
-                {label}
+            {NAV.map(([label, to, icon]) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === "/"}
+                title={label}
+                className={({ isActive }) => "navitem" + (isActive ? " active" : "")}
+              >
+                <Icon name={icon} />
+                <span className="navlabel">{label}</span>
               </NavLink>
             ))}
           </nav>
           <div className="acct">
-            {loadErr && <div className="acct-err">Resource load failed: {loadErr}</div>}
-            {account && <div className="acct-name">{account.name}</div>}
-            <div className="acct-hint">Private admin · Cloudflare Access</div>
+            <span className="acct-dot" />
+            <div className="acct-body">
+              {loadErr && <div className="acct-err">Resource load failed: {loadErr}</div>}
+              {account && <div className="acct-name">{account.name}</div>}
+              <div className="acct-hint">Private admin · Basic Auth</div>
+            </div>
           </div>
         </aside>
 
