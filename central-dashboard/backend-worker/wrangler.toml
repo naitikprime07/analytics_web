@@ -33,6 +33,16 @@ ALLOWED_ORIGINS = ""
 binding = "AE"
 dataset = "central_user_journey"
 
+# Dashboard UI (React build) served from THIS Worker -> same origin as the API, so
+# Basic Auth covers the whole site. run_worker_first=true makes the Worker gate asset
+# requests too (it calls env.ASSETS.fetch for non-/api paths). Rebuild the frontend
+# with VITE_API_BASE="" (relative) before deploy so its /api calls stay same-origin.
+[assets]
+directory = "../frontend/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
+
 # Custom domain lagavva hoy to Cloudflare dashboard -> Triggers -> Custom Domain.
 # Dashboard ne ab Cloudflare Access (Zero Trust) joie nathi - HTTP Basic Auth
 # (DASHBOARD_PASSWORD secret) darek read/admin route ne protect kare; mate no card /

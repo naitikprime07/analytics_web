@@ -70,6 +70,15 @@ export default {
         if (denied) return denied;
       }
 
+      // ---- Non-API paths -> serve the dashboard UI from Workers static assets ----
+      // Same origin as the API, so the Basic Auth session covers the SPA and its
+      // relative /api fetches. run_worker_first=true means this Worker gates asset
+      // requests too; not_found_handling=single-page-application serves index.html
+      // for client-side deep routes (e.g. /journey).
+      if (!path.startsWith("/api")) {
+        return env.ASSETS.fetch(request);
+      }
+
       if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID) {
         return json({ success: false, error: "Backend misconfigured: CF_API_TOKEN / CF_ACCOUNT_ID secret missing" }, 500, cors);
       }

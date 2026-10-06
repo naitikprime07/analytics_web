@@ -176,24 +176,30 @@ actual error `console.error` ma log thay (token KABHI response ma nathi aavto).
 
 ---
 
-## 5. Frontend: local dev + build + deploy
+## 5. Frontend: build + serve (same-origin from the Worker)
+
+The dashboard UI is served **as Workers static assets from the backend Worker** (see
+`[assets]` in `backend-worker/wrangler.toml`), so the UI and the API share ONE origin. That
+means HTTP Basic Auth (Section 6) guards the whole site and the SPA's relative `/api/*` calls
+carry the logged-in session - no CORS, no cross-origin prompt problem.
 
 ```bash
 cd frontend
 npm install
-npm run dev            # http://localhost:5173, /api proxy -> :8787
-npm run build          # -> dist/
-npx wrangler pages deploy dist   # Cloudflare Pages par
+npm run dev            # local dev only: http://localhost:5173, /api proxy -> :8787
+npm run build          # -> dist/  (build with VITE_API_BASE="" so /api is relative)
+cd ../backend-worker
+npx wrangler deploy    # bundles ../frontend/dist as assets + the API into one Worker
 ```
 
-Frontend SUDHU relative `/api/*` call kare (secret nathi). Prod mate aa two option:
-
-- **A (recommended, same-origin):** Pages custom domain par Worker nu `/api/*` route
-  mount karo, ke Pages Function thi `/api` proxy Worker ne.
-- **B:** frontend build karta mate `VITE_API_BASE=https://central-analytics-api.<sub>.workers.dev`
-  set karo (tyare Worker CORS open rakhjo).
-
-`public/_redirects` SPA routing mate (`/* -> /index.html 200`) add che.
+- Frontend uses **relative** `/api/*` (no secret, no baked URL). Build with `VITE_API_BASE=""`.
+- SPA deep routes (`/journey`, `/sessions`, ...) fall back to `index.html` via
+  `not_found_handling = "single-page-application"` - the old Pages `public/_redirects` file is
+  no longer needed (and would make the Worker asset deploy reject the build as a redirect loop).
+- `run_worker_first = true` makes the Worker gate asset requests too (it serves them via
+  `env.ASSETS.fetch`) so the UI itself is behind Basic Auth.
+- **Optional custom domain:** add one in Cloudflare (Workers -> your Worker -> Triggers ->
+  Custom domain) to move off `*.workers.dev`; nothing else changes (still same origin).
 
 ---
 
