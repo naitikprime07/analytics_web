@@ -142,9 +142,59 @@ body {
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 8px 12px;
   font-size: 13px;
+  font-family: inherit;
+  line-height: 1.2;
   min-width: 150px;
+  height: 38px;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+/* Replace the native (OS-drawn) select arrow, which ignores the dark bg +
+   border-radius and looks mismatched, with a themed chevron. */
+.filterbar select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238d87a6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+.filterbar select:hover,
+.filterbar input:hover {
+  border-color: #3a3157;
+}
+
+.filterbar select:focus,
+.filterbar input:focus {
+  outline: none;
+  border-color: var(--accent2);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, .18);
+}
+
+/* option list colors (honored by Chromium/Firefox desktop popups) */
+.filterbar select option {
+  background: #171029;
+  color: var(--text);
+}
+
+/* date field: make the native calendar icon visible on the dark background */
+.filterbar input[type="date"] {
+  cursor: text;
+}
+
+.filterbar input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(.85);
+  opacity: .55;
+  cursor: pointer;
+}
+
+.filterbar input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }
 
 .content {
