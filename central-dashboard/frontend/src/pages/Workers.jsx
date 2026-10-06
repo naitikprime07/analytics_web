@@ -18,7 +18,7 @@ export default function Workers() {
 
   return (
     <>
-      <h2 className="pagetitle">Workers <span className="sub">requests · errors · CPU time</span></h2>
+      <h2 className="pagetitle">Workers <span className="sub">requests · CPU time (error counts not available from this dataset)</span></h2>
       <DataTable
         columns={[
           { key: "worker", label: "Worker" },

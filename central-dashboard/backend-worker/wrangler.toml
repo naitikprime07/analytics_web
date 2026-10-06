@@ -6,16 +6,34 @@ compatibility_date = "2026-01-01"
 # NO D1, NO R2, NO database - data fetch thay Cloudflare GraphQL/REST API mathi.
 #
 # Secrets (kabhi repo/frontend ma navi - wrangler secret put thi aapelo):
-#   npx wrangler secret put CF_ACCOUNT_ID     # dash.cloudflare.com right sidebar
-#   npx wrangler secret put CF_API_TOKEN      # niche na permissions sathe token
+#   npx wrangler secret put CF_ACCOUNT_ID      # dash.cloudflare.com right sidebar
+#   npx wrangler secret put CF_API_TOKEN       # niche na permissions sathe token
+#   npx wrangler secret put DASHBOARD_PASSWORD # Basic Auth password (local dev: .dev.vars ma)
 #
 # Optional var:
 [vars]
-# "true" hoy to backend darek request ma Cloudflare Access header joje (auth backend thi nahi, Access thi thay).
+# "true" hoy to backend darek NON-track request par HTTP Basic Auth check kare
+# (username koi pan, password = DASHBOARD_PASSWORD secret). Cloudflare Access vapraati nahi.
 REQUIRE_ACCESS = "true"
 # Analytics queries nu cache TTL (seconds). Resource lists aa thi moti cache thay shake.
 # Live mode short polling kare etle TTL motu rakhiye ke poll par fresh data aave.
 CACHE_TTL = "30"
+# User Journey tracking mate: comma-separated site origins je POST /api/track karva shake
+# (e.g. "https://a.com,https://b.com"). Khali = koi pan origin (local dev mate j).
+ALLOWED_ORIGINS = ""
 
-# Custom domain lagavva hoy to Cloudflare dashboard -> Triggers -> Custom Domain,
-# ane aa Worker ne Cloudflare Access (Zero Trust) thi protect karvo.
+# User Journey / custom activity -> Workers Analytics Engine.
+# Dataset AUTO-CREATES on first write (dashboard ma manually banavvi padhe nahi).
+# WRITE path: env.AE.writeDataPoint(...) is authorized by THIS binding at deploy
+#   time and does NOT use CF_API_TOKEN (Cloudflare has no "Analytics Engine Write"
+#   token scope - it does not exist). READ path (dashboard queries) calls
+#   /accounts/{id}/analytics_engine/sql with CF_API_TOKEN, which needs only
+#   Account > Account Analytics > Read.
+[[analytics_engine_datasets]]
+binding = "AE"
+dataset = "central_user_journey"
+
+# Custom domain lagavva hoy to Cloudflare dashboard -> Triggers -> Custom Domain.
+# Dashboard ne ab Cloudflare Access (Zero Trust) joie nathi - HTTP Basic Auth
+# (DASHBOARD_PASSWORD secret) darek read/admin route ne protect kare; mate no card /
+# seat limit / Zero Trust setup nathi. POST /api/track public rahe (auth lagu nathi).

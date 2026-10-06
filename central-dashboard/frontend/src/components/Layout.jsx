@@ -18,6 +18,11 @@ const NAV = [
   ["Workers", "/workers"],
   ["Pages", "/pages"],
   ["Errors", "/errors"],
+  ["Journey", "/journey"],
+  ["Sessions", "/sessions"],
+  ["Visitors", "/visitors"],
+  ["Visited Pages", "/visited-pages"],
+  ["Navigation", "/flow"],
 ];
 
 const PRESETS = [

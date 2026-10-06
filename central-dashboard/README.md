@@ -5,9 +5,12 @@ Ek **private admin dashboard** jo tamara badha Cloudflare projects/domains nu an
 
 - NO D1, NO R2, NO external database
 - NO paid / third-party analytics (Google/Mixpanel/etc.)
-- NO custom user tracking in V1 (Cloudflare native data first)
+- V1 = Cloudflare-native data only. A **User Journey** custom-tracking layer (Workers
+  Analytics Engine) was added later as a **clearly separated** layer - see Section 10
+  and [`USER-JOURNEY.md`](./USER-JOURNEY.md).
 - Architecture: `Browser -> React frontend (Cloudflare Pages) -> backend Worker -> Cloudflare REST/GraphQL API`
-- Auth: **Cloudflare Access** (Zero Trust, free 50 seats) - koi password code ma nathi
+- Auth: **HTTP Basic** (browser nu native login box) - darek read/admin route `DASHBOARD_PASSWORD`
+  secret sathe protect che; **no Zero Trust account, no card, no seat limits**. Koi password code/git ma nathi.
 - CF API token **sudhu Worker secrets ma** - frontend/HTML/localStorage/git ma KABHI nahi
 
 > Note: aa ek **independent module** che. Tamari existing `../tracking-module/` ane
@@ -55,15 +58,47 @@ central-dashboard/
 
 Account resource: tamaru account. Token ek vaar j dekhay - copy kari ne rakhjo.
 
+> **Multi-account (verified):** discovery enums every account the token can read
+> (`listAccounts`), so **both** Cloudflare accounts appear. Create the token with
+> **Account Resources = Include → both accounts**. Zones are fetched token-wide and
+> attributed by each zone's **own** `account.id`; Workers/Pages are fetched **per account**.
+> Every project/domain row carries its `account` + `accountId`, so **Account A can never show
+> Account B's domains** (zoneTags and apex hostnames are globally unique). Analytics are
+> queried per unique `zoneTag`, which works across both accounts with the single token.
+>
+> **Known limit:** Workers *analytics numbers* are read from the pinned `CF_ACCOUNT_ID`
+> account only. Both accounts' Workers are still **listed** (discovery), but a non-pinned
+> account's Worker request/error counts show as "Not available". Zone/Pages analytics are
+> unaffected (they resolve through each zone's unique `zoneTag`).
+
+> **Injector (Phase 2) deploy mate extra permissions:** the dashboard token above is
+> **read-only**. To *deploy* the `injector-worker` and attach it as a zone route you need,
+> per account, a token with **Account ▸ Workers Scripts: Edit** and **Zone ▸ Workers Routes: Edit**
+> (these are deploy-time only and are NOT used by the running dashboard). Keep them separate
+> from the read-only dashboard token.
+
+> **Analytics Engine auth (important):** writing User Journey events with
+> `writeDataPoint()` is authorized by the Worker's `[[analytics_engine_datasets]]`
+> **binding at deploy time** - it does **not** use `CF_API_TOKEN`. Cloudflare has **no
+> "Analytics Engine: Write/Read" token scope** (that permission does not exist). The
+> **Account > Account Analytics > Read** permission in the table above already covers the
+> AE **SQL read** the dashboard runs. Do not add any "write" scope to the token.
+
 ---
 
-## 3. PHASE 0 - Live schema/field verification (implement/depend pela mandatory)
+## 3. PHASE 0 - Live schema/field verification
 
-`metrics.js` ane `graphql.js` ma jo dataset/field naam che te **best-effort defaults** che.
-Cloudflare plan/anu API version pramane naam badlay shake. Ete code rite aa fields
-**unverified** che, ane je field na male te auto **"Not available"** dekhay (fake number nathi).
+`metrics.js` ane `graphql.js` na dataset/field naam **LIVE verify** karya che (read-only
+GraphQL queries tamara actual accounts par - eka fake/assumed field nahi). Je field male
+chhe ne sudhu e j vapraya; je na male ke plan-gated che te auto **"Not available"** dekhay
+faked number nahi).
 
-Tame aa ek vaar verify karo (curl - token shell ma, repo ma navi):
+> **Point-in-time probe:** these checks were run read-only against the live accounts on
+> **2026-10-06** (see the Verified-against block below). Dataset availability and the range
+> limits are Cloudflare-side and can change - **re-run before treating them as current**;
+> nothing here is assumed or fabricated.
+
+You can re-run the same checks anytime (curl - token shell ma, repo ma navi):
 
 ```bash
 # 3a. introspection: available zone datasets
@@ -77,11 +112,21 @@ curl -s https://api.cloudflare.com/client/v4/graphql \
   -d '{"query":"query($s:Timestamp!,$u:Timestamp!){ viewer{ zones(filter:{zoneTag:\"ZONE_ID\"}){ httpRequestsAdaptiveGroups(limit:1, filter:{datetime_geq:$s, datetime_leq:$u}){ sum{ requests edgeResponseBytes } } } } }","variables":{"s":"2026-09-01T00:00:00Z","u":"2026-10-03T00:00:00Z"}}'
 ```
 
-Confirm thayela naam `metrics.js`/`graphql.js` ma lock karo, ane aa **verified-against note**
-README ma lakho:
+Confirm thayela naam `metrics.js`/`graphql.js` ma lock karya, ane aa **verified-against note**:
 
 ```
-Verified-against: account <id>, date <YYYY-MM-DD>, datasets: ______
+Verified-against: accounts Prime-2 (e0ddc38e82a27813016c92e9dcd51896) &
+                  Server@primesoftechs.com (6d0f21fc8cb32e3ac757c8bb83289c74);
+                  date 2026-10-06; 16 zones discovered.
+Verified datasets/fields (returned live data):
+  - zone httpRequests1dGroups  sum{requests, bytes}; countryMap{clientCountryName,requests,bytes};
+    responseStatusMap{edgeResponseStatus,requests}
+  - zone httpRequests1hGroups  sum{requests, bytes}  [LIMIT: range must be <= 3 days]
+  - zone httpRequestsAdaptiveGroups  count; sum{edgeResponseBytes}; dims{clientRequestHTTPHost,
+    clientCountryName, edgeResponseStatus, datetimeHour}  [host-scoped; range <= 27 days]
+  - workers workersOverviewRequestsAdaptiveGroups  count; sum{cpuTimeUs}; dim{scriptName}
+    (the `status` dim is a small internal code - NOT HTTP - so an error count is NOT derived)
+Not available (never fabricated): Unique Users/Visitors, Cities, Device/Browser/OS.
 ```
 
 **STRICT accuracy rule (prompt mathi):**
@@ -98,18 +143,23 @@ Verified-against: account <id>, date <YYYY-MM-DD>, datasets: ______
 ```bash
 cd backend-worker
 npx wrangler login
-npx wrangler secret put CF_ACCOUNT_ID     # dash.cloudflare.com right-bar mathi
-npx wrangler secret put CF_API_TOKEN      # Section 2 mathi
-npx wrangler dev                          # http://localhost:8787
-# test:
-curl "http://localhost:8787/api/account"
-curl "http://localhost:8787/api/projects"
-curl "http://localhost:8787/api/analytics/overview?preset=7d"
+npx wrangler secret put CF_ACCOUNT_ID       # dash.cloudflare.com right-bar mathi
+npx wrangler secret put CF_API_TOKEN        # Section 2 mathi
+npx wrangler secret put DASHBOARD_PASSWORD  # Basic Auth password (prod)
+# local dev mate aa secrets .dev.vars ma (git ma navi):
+#   CF_ACCOUNT_ID=...  CF_API_TOKEN=...  DASHBOARD_PASSWORD=...
+npx wrangler dev                            # http://localhost:8787
+# test (Basic Auth localhost par lagu che - -u aapvo padshe; username koi pan):
+curl -u admin:"$DASHBOARD_PASSWORD" "http://localhost:8787/api/account"
+curl -u admin:"$DASHBOARD_PASSWORD" "http://localhost:8787/api/projects"
+curl -u admin:"$DASHBOARD_PASSWORD" "http://localhost:8787/api/analytics/overview?preset=7d"
+curl -X POST "http://localhost:8787/api/track" -H 'content-type: application/json' -d '{...}'   # public (no -u)
 
-npx wrangler deploy                       # prod
+npx wrangler deploy                         # prod
 ```
 
-Optional vars (`wrangler.toml`): `REQUIRE_ACCESS=true`, `CACHE_TTL=120`.
+Optional vars (`wrangler.toml`): `REQUIRE_ACCESS=true` (ab = "enforce Basic Auth"), `CACHE_TTL=120`.
+Set `REQUIRE_ACCESS=false` only if you deliberately want the read APIs open (NOT recommended).
 
 ### Endpoints
 `GET /api/account` · `/api/zones` · `/api/workers` · `/api/pages` · `/api/projects` · `/api/domains`
@@ -147,16 +197,38 @@ Frontend SUDHU relative `/api/*` call kare (secret nathi). Prod mate aa two opti
 
 ---
 
-## 6. Auth (Cloudflare Access) - private dashboard
+## 6. Auth (HTTP Basic) - protected dashboard/read APIs, PUBLIC track ingest
 
-1. Zero Trust dashboard -> Access -> Applications -> Add self-hosted app.
-2. Add both the backend Worker custom domain AND the Pages domain as paths.
-3. Policy: allow tamari email (SSO/OTP). Free plan: 50 seats.
-4. Backend `REQUIRE_ACCESS=true` rakhho: Worker darek request ma
-   `Cf-Access-Jwt-Assertion` header check kare (Access enforse kare; local dev ma
-   `localhost` ethi pass thay che taake `wrangler dev` thi test kari sake).
+The dashboard and every read/admin API are protected by **HTTP Basic Auth** - no Cloudflare
+Access / Zero Trust, no card details, no seat limits. `POST /api/track` stays **public** so
+visitor browsers on tracked sites can send events without any login.
 
-Koi multi-user SaaS auth banavvanu nathi - ek admin, Access protected.
+**How it works** (`src/auth.js`, runs before all routing except `/api/track`):
+- The Worker reads the `Authorization` header and expects `Basic base64("<user>:" + DASHBOARD_PASSWORD)`.
+- **Username is ignored** (any value, e.g. `admin`); only the **password** is checked against the
+  `DASHBOARD_PASSWORD` secret.
+- Missing / wrong / malformed credentials -> **401** with
+  `WWW-Authenticate: Basic realm="Central Analytics Dashboard"`, so a same-origin dashboard load
+  pops the browser's **native login box** (no custom login page, no frontend change).
+- **Fail closed:** if `DASHBOARD_PASSWORD` is not set, protected routes return **503** - auth is
+  never silently skipped.
+- `/api/track` is handled **before** the gate and keeps its own `ALLOWED_ORIGINS` origin check +
+  server-side validation + rate limit (all unchanged).
+
+**Setup (replaces the old Zero Trust steps):**
+1. Generate a strong password.
+2. `npx wrangler secret put DASHBOARD_PASSWORD`   # prod; for local dev put it in `.dev.vars`
+3. Open the dashboard URL -> the browser prompts: **username = any value (e.g. `admin`)** + **password**.
+
+> **Serving tip (honest limitation):** the native Basic Auth prompt appears on a **document
+> navigation**. The simplest way to guarantee it is **same-origin** - route the dashboard (`/`)
+> and `/api/*` through this Worker on one custom domain, and Basic Auth guards everything except
+> `POST /api/track`. If the dashboard is served from a **separate origin** (e.g. Cloudflare Pages)
+> and calls the API via `fetch`, a cross-origin `fetch` does **not** auto-open the login box - it
+> just receives the 401. In that case serve through the Worker, or have the caller pre-send
+> credentials (an `Authorization` header).
+
+Koi multi-user SaaS auth banavvanu nathi - ek admin, Basic Auth protected; track ingest public.
 
 ---
 
@@ -168,8 +240,9 @@ Koi multi-user SaaS auth banavvanu nathi - ek admin, Access protected.
 | Bandwidth / traffic bytes | `sum.edgeResponseBytes` | Available (bytes) |
 | Countries (requests + bytes) | `ClientCountryName` dimension | Available |
 | HTTP errors 4xx/5xx | `EdgeResponseStatus` dimension | Available |
-| Traffic over time | `httpRequests1mGroups`/`1dGroups` | Available |
-| Workers requests/errors/duration | `workersAdaptiveGroups` | Available (Phase 0 verify) |
+| Traffic over time | `httpRequests1hGroups`(hourly) / `1dGroups`(daily) | Available (hourly capped at ≤3-day range) |
+| Workers requests / CPU | `workersOverviewRequestsAdaptiveGroups` (count, cpuTimeUs) | Available (live-verified) |
+| Workers errors | `status` dim is not an HTTP code | **Not available** (never derived from a non-HTTP code) |
 | Domains / Projects / Pages lists | REST zones/workers/pages | Available |
 | **Unique Users/Visitors** | Cloudflare requests aape, users nahi | **Not available** |
 | **Cities** | plan/dataset-gated | **Not available** |
@@ -199,3 +272,70 @@ kari shakho (khali manual mapping - database chari).
 - [ ] `npm run build` pass; pages render; loading/empty/error states dekhay.
 - [ ] Requests vs Bandwidth alag label/axis rite dekhay.
 - [ ] Access lagavta pachhi anonymous request block thay.
+
+---
+
+## 10. User Journey Analytics (custom-tracked layer)
+
+Aapda native dashboard upar ek **separate** layer je visitors ni actual activity
+track kare: page views, sessions, **active (tab-visible) time-on-page**, entry/exit,
+page→page navigation flow, ane individual visitor journeys.
+Full rollout guide + code: **[`USER-JOURNEY.md`](./USER-JOURNEY.md)**.
+
+- **Store:** Workers Analytics Engine dataset `central_user_journey` (binding `AE`).
+  Writes go through `POST /api/track` -> `writeEvent()`; reads through the AE SQL API.
+- **Central dataset ownership:** the **central backend Worker owns this dataset and is its
+  single writer.** Every tracked domain/account POSTs to that one Worker's `/api/track`,
+  which writes into that one `central_user_journey`. It is **not** a per-account copy -
+  Account A and Account B do **not** each own a copy; all events pool into the central one.
+  Each stored event preserves its source fields (actual schema): `event` (blob1),
+  `project` (blob2), `domain` (blob3), `path` (blob4), `visitorId` (blob7),
+  `sessionId` (blob8), and client `timestamp` (double2).
+- **Account/project resolution:** the backend maps a tracked hostname to its project/account
+  **at read time, using the discovered Cloudflare inventory**, scoped by the exact stored
+  hostname (`blob3`). When a hostname resolves, journeys group under that project/account
+  across both accounts. **Unresolved hostnames are never assigned to another account** - no
+  guessing, no fabrication, no cross-account contamination. `accountId` is derived from the
+  zone/project mapping, never trusted from the client.
+- **Event model (locked):** `page_view`, `page_duration`, `navigation`, `session_activity`.
+  There is **no** `session_start`/`session_end` source-of-truth - a session rolls over after
+  30 min idle and a visible `session_activity` heartbeat keeps it alive. Entry/exit pages are
+  **derived** server-side (first/last `page_view` per session); time-on-page counts only
+  **active/visible** time (the clock pauses when the tab is hidden).
+- **Dashboard window:** dashboard read APIs expose a **rolling 30-day window** (a read-side
+  query clamp). Analytics Engine itself may retain data longer; we never claim the data is
+  physically deleted after 30 days.
+- **Deployables:** **V1 (preferred) = the manual `tracking/analytics.js` embed** (one
+  `<script>` per site). The `injector-worker/` edge auto-inject is an **optional Phase 2**
+  convenience (no site edits) - it uses the identical event model via `src/snippet.js` and
+  only injects into **2xx HTML** (never redirects, errors, non-HTML, APIs, or downloads).
+- **API envelope:** dashboard reads return `{"success":true, ...data}`; errors return
+  `{"success":false,"error":"..."}`. `/api/track` is **public** (validates server-side, keeps
+  its `ALLOWED_ORIGINS` check) and is exempt from auth (README §6); the read APIs stay behind
+  HTTP Basic Auth (`REQUIRE_ACCESS=true` + `DASHBOARD_PASSWORD`). CF token is never exposed to
+  the browser.
+- **Separation:** Journey/Sessions/Visited Pages/Navigation/Visitors pages are labeled
+  "custom tracked" and never mix with Cloudflare-native numbers.
+
+### Troubleshooting: "no data appears after the test curl" (correct order)
+
+Do **not** jump to "the token is missing a scope" - that scope does not exist. Diagnose:
+
+1. **Read the curl response itself.** `204` = **accepted for ingestion** (the event passed
+   server-side validation and was submitted to Analytics Engine; it does **not** mean the row
+   is already queryable - AE ingestion is asynchronous). `4xx/5xx` = diagnose directly
+   (400 = bad/unknown event, missing ids, or invalid timestamp; 403 = origin not allowed;
+   413 = payload too large; 429 = rate limited; **500 = server/configuration error** - inspect
+   Worker logs and verify the Analytics Engine binding, dataset name, and other server config;
+   do not assume every 500 is a missing binding).
+2. **Confirm `CF_API_TOKEN` + `CF_ACCOUNT_ID`** are set with no stray whitespace/newline
+   (local: `.dev.vars`; prod: `wrangler secret put`). A read returns null if these are off.
+3. **Confirm the binding + dataset names match the code exactly:** `wrangler.toml` uses
+   `binding = "AE"` / `dataset = "central_user_journey"`; the query code must reference the
+   same. A mismatch = writes/reads silently hit different places.
+4. **Confirm the dashboard SQL uses the same dataset name** (`central_user_journey`). A
+   typo here yields empty results / "Not available" with no error.
+
+> Note: in **local** `wrangler dev` (without `--remote`) AE writes are buffered in the
+> miniflare instance and are **not** queryable via the hosted SQL API - use
+> `wrangler dev --remote` for the write->read round-trip test.

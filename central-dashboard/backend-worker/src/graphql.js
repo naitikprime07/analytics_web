@@ -187,16 +187,19 @@ export async function fetchTrafficSeries(env, zoneTags, since, until, granularit
   return mergeByT(rows);
 }
 
-// PHASE 0 VERIFIED: worker invocation analytics dataset is
+// PHASE 0 VERIFIED (live): worker invocation analytics dataset is
 // `workersOverviewRequestsAdaptiveGroups` under viewer.accounts.
 // dimensions { scriptName, status }, count = #requests, sum { cpuTimeUs }.
-// requests per script = sum(count); errors = sum(count where status>=400).
+// requests per script = sum(count) (valid). The `status` dimension here is a small
+// internal code (live values observed: 1, 7) - NOT an HTTP status - so we do NOT
+// derive an error count from it (that would fabricate a misleading 0). Workers
+// errors are reported as null -> the UI shows "Not available".
 const WORKERS = `query($accountTag:String!,$since:Timestamp!,$until:Timestamp!){
   viewer { accounts(filter:{accountTag:$accountTag}) {
     workersOverviewRequestsAdaptiveGroups(limit:500, filter:{datetime_geq:$since, datetime_leq:$until}) {
       count
       sum { cpuTimeUs }
-      dimensions { scriptName status }
+      dimensions { scriptName }
     }
   } }
 }`;
@@ -214,12 +217,11 @@ export async function fetchWorkers(env, since, until) {
   const byScript = new Map();
   for (const g of groups) {
     const name = g.dimensions?.scriptName ?? "unknown";
-    const status = Number(g.dimensions?.status);
     const cnt = g.count || 0;
-    const cur = byScript.get(name) || { worker: name, requests: 0, errors: 0, cpuTimeMs: 0 };
-    cur.requests += cnt;
-    if (Number.isFinite(status) && status >= 400) cur.errors += cnt;
+    const cur = byScript.get(name) || { worker: name, requests: 0, errors: null, cpuTimeMs: 0 };
+    cur.requests += cnt; // sum of count = requests (verified measure)
     cur.cpuTimeMs += (g.sum?.cpuTimeUs || 0) / 1000;
+    // errors intentionally left null: not derivable from this dataset honestly.
     byScript.set(name, cur);
   }
   return [...byScript.values()].sort((a, b) => b.requests - a.requests);

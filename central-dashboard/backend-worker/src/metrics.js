@@ -52,14 +52,17 @@ export const METRICS = {
     datasetDay: "httpRequests1dGroups",
   },
 
-  // ---- Workers built-in analytics (Phase 0 ma dataset confirm karvu) ----
+  // ---- Workers built-in analytics (Phase 0 LIVE-verified) ----
   workers: {
     label: "Workers analytics",
     kind: "group",
-    available: true, // backend query fail thay to auto N/A
-    dataset: "workersAdaptiveGroups",
-    measures: ["requests", "errors", "duration"],
+    available: true, // requests + CPU verified; backend query fail -> auto N/A
+    dataset: "workersOverviewRequestsAdaptiveGroups",
+    measures: ["requests (sum count)", "cpuTimeUs"],
     dimension: "scriptName",
+    // The `status` dimension here is a small internal code (live: 1, 7), NOT an
+    // HTTP status, so an error count is NOT derived (avoids a fabricated 0).
+    errorsAvailable: false,
   },
 
   // ---- NOT available from Cloudflare free native analytics -> strict N/A ----

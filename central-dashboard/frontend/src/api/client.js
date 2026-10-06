@@ -35,4 +35,13 @@ export const api = {
   countries: (p) => get("/api/analytics/countries", p),
   errors: (p) => get("/api/analytics/errors", p),
   workers: (p) => get("/api/analytics/workers", p),
+  // User Journey (custom-tracked via Analytics Engine) - separate from native CF
+  journey: (p) => get("/api/analytics/journey", p),
+  journeyPages: (p) => get("/api/analytics/pages", p),
+  entryExit: (p) => get("/api/analytics/entry-exit", p),
+  sessions: (p) => get("/api/analytics/sessions", p),
+  sessionDetail: (p) => get("/api/analytics/sessions", p),
+  navigation: (p) => get("/api/analytics/navigation", p),
+  visitors: (p) => get("/api/analytics/visitors", p),
+  visitorDetail: (p) => get("/api/analytics/visitors", p),
 };

@@ -9,9 +9,11 @@
  *   /api/analytics/errors    /api/analytics/workers
  * Query params for analytics: project= | domain= | from= | to= | preset= | granularity=
  *
- * NO D1 / NO R2 / NO database. Auth via Cloudflare Access (Zero Trust) in front.
+ * NO D1 / NO R2 / NO database. Auth via HTTP Basic (DASHBOARD_PASSWORD secret) on
+ * every route except the public POST /api/track ingest.
  */
 
+import { checkBasicAuth } from "./auth.js";
 import { getAccount, buildInventory, listZones, listAccounts } from "./cloudflare.js";
 import {
   fetchOverview,
@@ -23,6 +25,18 @@ import {
 } from "./graphql.js";
 import { getOrCompute } from "./cache.js";
 import { notAvailable } from "./metrics.js";
+import {
+  EVENTS,
+  writeEvent,
+  journeyOverview,
+  topPages,
+  entryExitPages,
+  listSessions,
+  sessionDetail,
+  navigationFlow,
+  listVisitors,
+  visitorJourney,
+} from "./analytics-engine.js";
 
 const DAY = 86400000;
 
@@ -33,45 +47,47 @@ export default {
 
     // CORS for local dev (Vite proxy) - prod same-origin hoy to e require nathi
     const cors = {
-      "Access-Control-Allow-Origin": url.searchParams.get("cb") ? "*" : "*",
+      "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "authorization, content-type",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     };
     if (request.method === "OPTIONS") return new Response(null, { headers: cors });
 
+    // ---- Public tracking ingest (visitors) - NO auth, runs before the Basic Auth gate ----
+    if (path === "/api/track") {
+      if (request.method !== "POST") return json({ success: false, error: "Method not allowed" }, 405, cors);
+      return handleTrack(request, env, cors);
+    }
+
     try {
-      // ---- Auth: Cloudflare Access ----
+      // ---- Auth: HTTP Basic (replaces Cloudflare Access) ----
+      // REQUIRE_ACCESS is kept as the flag name; it now means "enforce the Basic Auth
+      // check". /api/track is handled ABOVE (public) and never reaches this gate.
+      // Every other request is checked - including localhost - so local dev reads
+      // DASHBOARD_PASSWORD from .dev.vars (test with: curl -u admin:<pw> ...).
       if (env.REQUIRE_ACCESS === "true") {
-        // Headers.get() case-insensitive che; name ma space kabhi nakhvu (invalid throw kare)
-        const assertion = request.headers.get("Cf-Access-Jwt-Assertion");
-        // local dev ma headers null rahay - wrangler dev thi direct test karva mate chhod
-        if (!assertion && !isLocal(url)) {
-          return json({ error: "Unauthorized (Cloudflare Access required)" }, 401, cors);
-        }
+        const denied = checkBasicAuth(request, env, cors);
+        if (denied) return denied;
       }
 
       if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID) {
-        return json({ error: "Backend misconfigured: CF_API_TOKEN / CF_ACCOUNT_ID secret missing" }, 500, cors);
+        return json({ success: false, error: "Backend misconfigured: CF_API_TOKEN / CF_ACCOUNT_ID secret missing" }, 500, cors);
       }
 
-      if (request.method !== "GET") return json({ error: "Method not allowed" }, 405, cors);
+      if (request.method !== "GET") return json({ success: false, error: "Method not allowed" }, 405, cors);
 
       const handler = ROUTES[path];
-      if (!handler) return json({ error: "Not found", path }, 404, cors);
+      if (!handler) return json({ success: false, error: "Not found", path }, 404, cors);
 
       const data = await handler(request, url, env, ctx);
-      return json(data, 200, cors);
+      return json(envelope(data), 200, cors);
     } catch (err) {
       // prompt: clear client message, secure backend log (no token)
       console.error("[api] error on", path, ":", err.message);
-      return json({ error: "Unable to load Cloudflare analytics." }, 502, cors);
+      return json({ success: false, error: "Unable to load Cloudflare analytics." }, 502, cors);
     }
   },
 };
-
-function isLocal(url) {
-  return url.hostname === "localhost" || url.hostname === "127.0.0.1";
-}
 
 // ---- routes ----
 const ROUTES = {
@@ -95,6 +111,15 @@ const ROUTES = {
   "/api/analytics/countries": handleCountries,
   "/api/analytics/errors": handleErrors,
   "/api/analytics/workers": handleWorkers,
+
+  // User Journey (custom-tracked via Analytics Engine) - clearly separate from
+  // Cloudflare-native numbers, Access-protected like the rest.
+  "/api/analytics/journey": handleJourney,
+  "/api/analytics/pages": handlePages,
+  "/api/analytics/entry-exit": handleEntryExit,
+  "/api/analytics/sessions": handleSessions,
+  "/api/analytics/navigation": handleNavigation,
+  "/api/analytics/visitors": handleVisitors,
 };
 
 // resolve which zoneTags (+ optional host) to query based on project/domain filter
@@ -344,6 +369,156 @@ async function handleWorkers(req, url, env) {
   return { rows };
 }
 
+// ---- public tracking ingest (POST /api/track) ----
+// Best-effort per-isolate rate limit (Workers are stateless; this is a soft cap).
+const RATE_WINDOW_MS = 60000;
+const RATE_MAX = 600; // events per IP per minute
+const rateBuckets = new Map();
+function rateLimited(ip) {
+  const now = Date.now();
+  const b = rateBuckets.get(ip);
+  if (!b || now > b.reset) {
+    if (rateBuckets.size > 20000) for (const [k, v] of rateBuckets) if (now > v.reset) rateBuckets.delete(k);
+    rateBuckets.set(ip, { n: 1, reset: now + RATE_WINDOW_MS });
+    return false;
+  }
+  b.n += 1;
+  return b.n > RATE_MAX;
+}
+function originAllowed(request, env) {
+  const allow = (env.ALLOWED_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (!allow.length) return true; // not configured -> allow (local dev only)
+  const raw = request.headers.get("origin") || request.headers.get("referer") || "";
+  if (!raw) return false;
+  let host = raw;
+  try { host = new URL(raw).origin; } catch {}
+  return allow.some((a) => { let ao = a; try { ao = new URL(a).origin; } catch {} return ao === host; });
+}
+function tstr(v, max) { return typeof v === "string" ? v.slice(0, max) : ""; }
+function tnum(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+
+async function handleTrack(request, env, cors) {
+  if (!originAllowed(request, env)) return json({ success: false, error: "origin not allowed" }, 403, cors);
+  const ip = (request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for") || "unknown").split(",")[0].trim();
+  if (rateLimited(ip)) return json({ success: false, error: "rate limited" }, 429, cors);
+
+  if (Number(request.headers.get("content-length") || 0) > 4096) return json({ success: false, error: "payload too large" }, 413, cors);
+  let body;
+  try {
+    const text = await request.text();
+    if (!text || text.length > 4096) return json({ success: false, error: "payload too large" }, 413, cors);
+    body = JSON.parse(text);
+  } catch { return json({ success: false, error: "invalid json" }, 400, cors); }
+  if (!body || typeof body !== "object") return json({ success: false, error: "invalid payload" }, 400, cors);
+
+  const event = tstr(body.e, 24);
+  if (!EVENTS.includes(event)) return json({ success: false, error: "unknown event" }, 400, cors);
+  const sessionId = tstr(body.s, 64);
+  const visitorId = tstr(body.v, 64);
+  if (!sessionId || !visitorId) return json({ success: false, error: "missing ids" }, 400, cors);
+  // every event must carry a hostname (blob3) so the dashboard can scope it to a
+  // project/account and separate journeys per domain; and a real client timestamp.
+  const domain = tstr(body.d, 200);
+  if (!domain) return json({ success: false, error: "missing domain" }, 400, cors);
+  const rawTs = Number(body.ts);
+  if (!Number.isFinite(rawTs) || rawTs <= 0) return json({ success: false, error: "invalid timestamp" }, 400, cors);
+
+  const ok = writeEvent(env, {
+    event,
+    project: tstr(body.p, 120) || "default",
+    domain,
+    path: tstr(body.path, 500),
+    referrer: tstr(body.ref, 500),
+    country: (request.cf && request.cf.country) || "XX",
+    visitorId,
+    sessionId,
+    duration: tnum(body.dur),
+    clientTs: rawTs,
+  });
+  return ok ? new Response(null, { status: 204, headers: cors }) : json({ success: false, error: "write failed" }, 500, cors);
+}
+
+// ---- User Journey reads (Analytics Engine) ----
+const JOURNEY_MAX_DAYS = 30; // dashboard window; AE may retain longer. Query cap, not a delete.
+// Turn the filter bar into a set of tracked HOSTNAME apexes to scope the AE
+// queries. A tracked event stores the visitor's exact hostname (blob3), so the
+// backend resolves project/account -> zone apexes + Pages custom domains, across
+// BOTH accounts. No project/account selected -> whole tracked dataset.
+function resolveTrackedApexes(inv, { account, project }) {
+  const apexes = new Set();
+  for (const p of inv.projects) {
+    if (project) { if (p.name !== project) continue; }
+    else if (account) { if (p.account !== account) continue; }
+    if (p.type === "worker") continue; // compute-only, no HTML pages to track
+    if (p.type === "zone") apexes.add(p.name); // apex matches its subdomains via LIKE
+    const doms = p.domains || [];
+    if (doms.length) for (const d of doms) apexes.add(d);
+    else apexes.add(p.name); // Pages without a linked custom domain
+  }
+  return [...apexes];
+}
+
+async function journeyOpts(url, env) {
+  let { since, until } = windowFrom(url);
+  // Show only the rolling 30-day window regardless of the requested preset/custom
+  // range. This is a query-side cap (AE itself retains longer); we never claim the
+  // data is physically deleted.
+  const maxSince = new Date(new Date(until).getTime() - JOURNEY_MAX_DAYS * DAY).toISOString();
+  if (new Date(since) < new Date(maxSince)) since = maxSince;
+
+  const opts = { since, until };
+  const account = url.searchParams.get("account");
+  const project = url.searchParams.get("project");
+  const domain = url.searchParams.get("domain");
+  if (domain) opts.domain = domain;
+  else if (project || account) {
+    const inv = await buildInventory(env);
+    opts.apexes = resolveTrackedApexes(inv, { account, project });
+  }
+  // drill-down / filter dimensions (all optional)
+  const visitor = url.searchParams.get("visitor");
+  const session = url.searchParams.get("session");
+  const path = url.searchParams.get("path");
+  const event = url.searchParams.get("event");
+  if (visitor) opts.visitor = visitor;
+  if (session) opts.session = session;
+  if (path) opts.path = path;
+  if (event) opts.event = event;
+  return opts;
+}
+async function handleJourney(req, url, env) {
+  const opts = await journeyOpts(url, env);
+  return cached(url, env, () => journeyOverview(env, opts), "journey");
+}
+async function handlePages(req, url, env) {
+  const opts = await journeyOpts(url, env);
+  const rows = await cached(url, env, () => topPages(env, opts), "jpages");
+  return { rows };
+}
+async function handleEntryExit(req, url, env) {
+  const opts = await journeyOpts(url, env);
+  return cached(url, env, () => entryExitPages(env, opts), "jentry");
+}
+async function handleSessions(req, url, env) {
+  const opts = await journeyOpts(url, env);
+  const id = url.searchParams.get("id");
+  if (id) return sessionDetail(env, opts, id); // drill-down: no cache
+  const rows = await cached(url, env, () => listSessions(env, opts), "jsessions");
+  return { rows };
+}
+async function handleNavigation(req, url, env) {
+  const opts = await journeyOpts(url, env);
+  const rows = await cached(url, env, () => navigationFlow(env, opts), "jnav");
+  return { rows };
+}
+async function handleVisitors(req, url, env) {
+  const opts = await journeyOpts(url, env);
+  const id = url.searchParams.get("id");
+  if (id) return visitorJourney(env, opts, id); // individual journey: no cache
+  const rows = await cached(url, env, () => listVisitors(env, opts), "jvisitors");
+  return { rows };
+}
+
 // ---- date window helpers ----
 function windowFrom(url) {
   const preset = url.searchParams.get("preset") || "7d";
@@ -367,9 +542,14 @@ function windowFrom(url) {
 }
 
 function granularityFrom(url, since, until) {
+  const span = new Date(until) - new Date(since);
+  // Cloudflare's hourly dataset (httpRequests1hGroups) rejects ranges wider than
+  // 3 days (live-verified: "cannot request a time range wider than 3d"). Honor an
+  // hourly request only within that cap; otherwise fall back to daily so the query
+  // never errors out and silently shows an empty chart.
+  if (span > 3 * DAY) return "daily";
   const g = url.searchParams.get("granularity");
   if (g === "hourly" || g === "daily") return g;
-  const span = new Date(until) - new Date(since);
   return span <= DAY ? "hourly" : "daily";
 }
 
@@ -382,4 +562,11 @@ function json(obj, status = 200, extraHeaders = {}) {
     status,
     headers: { "content-type": "application/json; charset=utf-8", ...extraHeaders },
   });
+}
+
+// Predictable success envelope for dashboard APIs: adds success:true while keeping
+// the payload's own top-level keys (rows/totals/...) so existing clients are intact.
+function envelope(data) {
+  if (data && typeof data === "object" && !Array.isArray(data)) return { success: true, ...data };
+  return { success: true, data };
 }
