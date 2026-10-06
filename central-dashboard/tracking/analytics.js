@@ -4,12 +4,12 @@
  * Worker's public /api/track endpoint, which writes to Workers Analytics Engine
  * (dataset: user_journey).
  *
- * Install (one <script> tag per site, e.g. before </head>):
- *   <script src="https://<your-worker>/tracking/analytics.js"
- *           data-endpoint="https://<central-worker>/api/track"
- *           data-project="my-project" defer></script>
+ * Install (one <script> tag per site, e.g. before </head>). Zero-config: the
+ * snippet is served by the central Worker, so it derives the /api/track URL from
+ * its OWN src - no data-endpoint needed:
+ *   <script src="https://<central-worker>/analytics.js" defer></script>
  *
- *   - data-endpoint : the Worker /api/track URL (defaults to same-origin /api/track)
+ *   - data-endpoint : override the /api/track URL (default = the origin serving this script)
  *   - data-project  : a stable label grouping this site's domains (defaults to hostname)
  *
  * EVENT MODEL: page_view, page_duration, navigation, session_activity. No
@@ -33,7 +33,11 @@
   if (!script) return;
   if (navigator.doNotTrack === "1" || window.doNotTrack === "1") return;
 
-  var ENDPOINT = script.getAttribute("data-endpoint") || "/api/track";
+  // Zero-config: default the ingest URL to the origin that SERVES this snippet
+  // (the central Worker), so a plain <script src=".../analytics.js"> works on any
+  // cross-origin site. Only fall back to same-origin if we have no src (inline).
+  var ENDPOINT = script.getAttribute("data-endpoint") ||
+    (script.src ? new URL(script.src, location.href).origin + "/api/track" : "/api/track");
   var PROJECT = script.getAttribute("data-project") || location.hostname;
   var IDLE = 30 * 60 * 1000; // 30 min idle -> new session
   var HB = 30000; // visible heartbeat interval
@@ -69,8 +73,11 @@
     };
     var body = JSON.stringify(payload);
     try {
+      // text/plain is a CORS-safelisted type -> the cross-origin beacon is a
+      // "simple" request (no preflight), so sendBeacon reliably delivers it. The
+      // backend reads the raw text and JSON.parses it, so content-type is fine.
       if (navigator.sendBeacon) {
-        navigator.sendBeacon(ENDPOINT, new Blob([body], { type: "application/json" }));
+        navigator.sendBeacon(ENDPOINT, new Blob([body], { type: "text/plain;charset=UTF-8" }));
       } else {
         fetch(ENDPOINT, { method: "POST", body: body, mode: "no-cors", keepalive: true });
       }
