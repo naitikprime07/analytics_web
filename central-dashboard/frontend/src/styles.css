@@ -845,3 +845,49 @@ tbody tr.selected {
   background: #241a3d;
   outline: 1px solid var(--accent2);
 }
+
+/* Dark-themed chart tooltip (recharts custom content) */
+.chart-tip {
+  background: #1b1430;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+  color: var(--text);
+  font-size: 12px;
+  min-width: 150px;
+}
+
+.chart-tip-title {
+  color: var(--text);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.chart-tip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 2px 0;
+}
+
+.chart-tip-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.chart-tip-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.chart-tip-val {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}

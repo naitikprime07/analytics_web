@@ -9,6 +9,7 @@ import { fmtNumber, fmtBytes, fmtDate } from "../lib/format.js";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from "recharts";
+import ChartTooltip from "../components/ChartTooltip.jsx";
 
 // Bandwidth page: BYTES over time - clearly alag metric from requests.
 export default function Bandwidth() {
@@ -48,7 +49,7 @@ export default function Bandwidth() {
                 <CartesianGrid stroke="#241d38" />
                 <XAxis dataKey="t" tickFormatter={fmtDate} stroke="#8d87a6" minTickGap={40} />
                 <YAxis stroke="#38bdf8" tickFormatter={(v) => `${v} MB`} />
-                <Tooltip labelFormatter={(l) => fmtDate(l)} formatter={(v) => [`${Number(v).toFixed(2)} MB`, "Bandwidth"]} />
+                <Tooltip cursor={{ stroke: "#4a3f6b", strokeWidth: 1 }} content={<ChartTooltip valueFormatter={(v) => [`${Number(v).toFixed(2)} MB`, "Bandwidth"]} />} />
                 <Area type="monotone" dataKey="mb" stroke="#38bdf8" fill="url(#bw)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>

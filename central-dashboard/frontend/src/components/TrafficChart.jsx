@@ -5,6 +5,7 @@ import {
 } from "recharts";
 import { fmtBytes, fmtNumber, fmtDate } from "../lib/format.js";
 import { Empty } from "./StateViews.jsx";
+import ChartTooltip from "./ChartTooltip.jsx";
 
 // Requests ane Bandwidth hamesha veglla axis/series rite dekhay (accuracy rule).
 export default function TrafficChart({ series = [] }) {
@@ -25,11 +26,16 @@ export default function TrafficChart({ series = [] }) {
           <YAxis yAxisId="left" stroke="#b9a4f7" tickFormatter={(v) => fmtNumber(v)} />
           <YAxis yAxisId="right" orientation="right" stroke="#38bdf8" tickFormatter={(v) => `${v} MB`} />
           <Tooltip
-            labelFormatter={(l) => fmtDate(l)}
-            formatter={(value, name) => {
-              if (name === "Bandwidth (MB)") return [`${Number(value).toFixed(2)} MB`, name];
-              return [fmtNumber(value), name];
-            }}
+            cursor={{ stroke: "#4a3f6b", strokeWidth: 1 }}
+            content={(
+              <ChartTooltip
+                valueFormatter={(value, name) =>
+                  name === "Bandwidth (MB)"
+                    ? [`${Number(value).toFixed(2)} MB`, name]
+                    : [fmtNumber(value), name]
+                }
+              />
+            )}
           />
           <Legend />
           <Line yAxisId="left" type="monotone" dataKey="requests" name="Requests" stroke="#b9a4f7" dot={false} strokeWidth={2} />

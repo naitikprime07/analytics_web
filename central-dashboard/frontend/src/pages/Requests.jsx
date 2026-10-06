@@ -36,6 +36,7 @@ export default function Requests() {
 
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { fmtNumber, fmtDate } from "../lib/format.js";
+import ChartTooltip from "../components/ChartTooltip.jsx";
 function RequestsOnlyChart({ series }) {
   if (!series.length) return <p className="foot">No request data.</p>;
   return (
@@ -51,7 +52,7 @@ function RequestsOnlyChart({ series }) {
           <CartesianGrid stroke="#241d38" />
           <XAxis dataKey="t" tickFormatter={fmtDate} stroke="#8d87a6" minTickGap={40} />
           <YAxis stroke="#b9a4f7" tickFormatter={(v) => fmtNumber(v)} />
-          <Tooltip labelFormatter={(l) => fmtDate(l)} formatter={(v) => [fmtNumber(v), "Requests"]} />
+          <Tooltip cursor={{ stroke: "#4a3f6b", strokeWidth: 1 }} content={<ChartTooltip valueFormatter={(v) => [fmtNumber(v), "Requests"]} />} />
           <Area type="monotone" dataKey="requests" stroke="#b9a4f7" fill="url(#req)" strokeWidth={2} />
         </AreaChart>
       </ResponsiveContainer>
