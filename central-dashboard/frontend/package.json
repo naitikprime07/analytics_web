@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "postbuild": "node -e \"require('fs').copyFileSync('../tracking/analytics.js','dist/analytics.js')\"",
     "preview": "vite preview",
-    "deploy": "npm run build && wrangler pages deploy dist"
+    "deploy": "npm run build && npx wrangler deploy --config ../backend-worker/wrangler.toml"
   },
   "dependencies": {
     "react": "^18.3.1",

@@ -34,7 +34,11 @@
   if (!script) return;
   if (navigator.doNotTrack === "1" || window.doNotTrack === "1") return;
 
-  var ENDPOINT = script.getAttribute("data-endpoint") || "/api/track";
+  // Endpoint: explicit data-endpoint wins; otherwise derive from THIS script's own
+  // origin (so a centrally-hosted /analytics.js posts back to the same central Worker
+  // /api/track automatically - zero per-site config); else same-origin (local dev).
+  var ENDPOINT = script.getAttribute("data-endpoint") ||
+    (script.src ? new URL(script.src, location.href).origin + "/api/track" : "/api/track");
   var PROJECT = script.getAttribute("data-project") || location.hostname;
   var IDLE = 30 * 60 * 1000; // 30 min idle -> new session
   var HB = 30000; // visible heartbeat interval

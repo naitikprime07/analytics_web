@@ -59,6 +59,13 @@ export default {
       return handleTrack(request, env, cors);
     }
 
+    // ---- Public tracking snippet - must load in any visitor's browser, so it is
+    // served BEFORE the Basic Auth gate (a <script src> GET, no login prompt).
+    // Sites embed: <script src="https://<this-worker>/analytics.js" defer></script>
+    if (path === "/analytics.js" || path === "/tracking/analytics.js") {
+      return env.ASSETS.fetch(request);
+    }
+
     try {
       // ---- Auth: HTTP Basic (replaces Cloudflare Access) ----
       // REQUIRE_ACCESS is kept as the flag name; it now means "enforce the Basic Auth
