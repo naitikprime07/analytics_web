@@ -29,9 +29,35 @@ export function isNA(obj) {
   return !obj || obj.available === false;
 }
 
-export function fmtDate(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit" });
+// Parse any backend time value into an absolute Date.
+// Workers Analytics Engine returns its `timestamp` as a NAIVE UTC string with no
+// timezone marker (e.g. "2026-10-06 09:01:42"). new Date("2026-10-06 09:01:42")
+// would interpret that as LOCAL wall-clock time and shift it (wrong by the viewer's
+// offset). So any string that looks like a bare datetime (no trailing Z / no +hh:mm
+// offset) is treated as UTC. Real ISO strings (with Z/offset) and epoch numbers pass
+// through untouched.
+function toDate(value) {
+  if (value instanceof Date) return value;
+  if (typeof value === "number") return new Date(value);
+  const s = String(value).trim();
+  const naive = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?)$/);
+  if (naive) return new Date(`${naive[1]}T${naive[2]}Z`);
+  return new Date(s);
+}
+
+// All dashboard times are shown in India Standard Time (Asia/Kolkata) so they match
+// the operator's wall clock regardless of the device viewing the dashboard.
+const TZ = "Asia/Kolkata";
+
+export function fmtDate(value) {
+  if (value === null || value === undefined || value === "") return "";
+  const d = toDate(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString("en-US", {
+    timeZone: TZ,
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
