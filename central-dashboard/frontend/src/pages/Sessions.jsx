@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { api } from "../api/client.js";
 import { useApi } from "../lib/useApi.js";
 import { useFilters } from "../components/Layout.jsx";
+import DataTable from "../components/DataTable.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 import { ErrorState, Empty } from "../components/StateViews.jsx";
 import { PageSkeleton } from "../components/Skeleton.jsx";
 import { fmtNumber, fmtDate } from "../lib/format.js";
@@ -16,7 +18,7 @@ function fmtSec(s) {
 export default function Sessions() {
   const f = useFilters();
   const deps = [f.account, f.project, f.domain, f.preset, f.from, f.to, f.visitor, f.session, f.path, f.event];
-  const params = { project: f.project, domain: f.domain, preset: f.preset, from: f.from, to: f.to, visitor: f.visitor, session: f.session, path: f.path, event: f.event };
+  const params = { account: f.account, project: f.project, domain: f.domain, preset: f.preset, from: f.from, to: f.to, visitor: f.visitor, session: f.session, path: f.path, event: f.event };
 
   const [sel, setSel] = useState(null);
   const list = useApi(() => api.sessions(params), deps);
@@ -32,35 +34,36 @@ export default function Sessions() {
 
   return (
     <>
-      <h2 className="pagetitle">Sessions <span className="badge">custom tracked</span></h2>
+      <PageHeader
+        title="Sessions"
+        badge="custom tracked"
+        items={[
+          "Each row is one visit, custom-tracked by analytics.js via Workers Analytics Engine (not Cloudflare request counts).",
+          "Started/Ended come from activity plus a 30-minute inactivity timeout - Cloudflare has no exact 'exit' event, so the end is the last activity.",
+          "Pages = page_view count; Duration = sum of active (tab-visible) time, not wall-clock.",
+          "Click a session to open its event timeline. Scope follows the filter bar (Account, Project, Domain). Times shown in IST.",
+          "Rolling 30-day window.",
+        ]}
+      />
       <p className="foot" style={{ marginTop: "-8px", marginBottom: 18 }}>Session start/end derived from activity + the 30-min inactivity timeout (not a client exit event). Rolling 30-day window. Click a row for the timeline.</p>
       {rows == null ? (
         <Empty text="Session data unavailable right now (Analytics Engine query failed or not verified yet)." />
-      ) : !rows.length ? (
-        <Empty text="No tracked sessions yet. Install analytics.js and complete Phase 0/1." />
       ) : (
-        <div className="tablewrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Started</th><th>Country</th><th>Domain</th>
-                <th style={{ textAlign: "right" }}>Pages</th><th style={{ textAlign: "right" }}>Duration</th><th>Session</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.sessionId} onClick={() => setSel(r.sessionId)} style={{ cursor: "pointer" }}>
-                  <td>{fmtDate(r.startedAt)}</td>
-                  <td>{r.country || "—"}</td>
-                  <td>{r.domain || "—"}</td>
-                  <td style={{ textAlign: "right" }}>{fmtNumber(r.pageViews)}</td>
-                  <td style={{ textAlign: "right" }}>{fmtSec(r.seconds)}</td>
-                  <td><code>{String(r.sessionId).slice(0, 8)}</code></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={rows}
+          rowKey={(r) => r.sessionId}
+          onRowClick={(r) => setSel(r.sessionId)}
+          isSelected={(r) => r.sessionId === sel}
+          emptyText="No tracked sessions yet. Install analytics.js and complete Phase 0/1."
+          columns={[
+            { key: "startedAt", label: "Started", hint: "First activity of the session (IST).", render: (r) => fmtDate(r.startedAt) },
+            { key: "country", label: "Country", render: (r) => r.country || "—" },
+            { key: "domain", label: "Domain", render: (r) => r.domain || "—" },
+            { key: "pageViews", label: "Pages", align: "right", hint: "Number of page_view events in the session.", render: (r) => fmtNumber(r.pageViews) },
+            { key: "seconds", label: "Duration", align: "right", hint: "Total active (tab-visible) time; not wall-clock.", render: (r) => fmtSec(r.seconds) },
+            { key: "sessionId", label: "Session", render: (r) => <code>{String(r.sessionId).slice(0, 8)}</code> },
+          ]}
+        />
       )}
 
       {sel && (
@@ -70,23 +73,17 @@ export default function Sessions() {
             <button className="chip more" style={{ marginLeft: 12 }} onClick={() => setSel(null)}>close</button>
           </h3>
           {detail.loading ? <p className="state loading">Loading…</p> : detail.error ? <ErrorState message={detail.error} /> : (
-            !detail.data?.available ? <Empty text="Session detail unavailable (query failed or not verified yet)." /> :
-            !detail.data.rows.length ? <Empty text="No events for this session." /> : (
-              <div className="tablewrap">
-                <table>
-                  <thead><tr><th>Time</th><th>Event</th><th>Path</th><th style={{ textAlign: "right" }}>Duration</th></tr></thead>
-                  <tbody>
-                    {detail.data.rows.map((e, i) => (
-                      <tr key={i}>
-                        <td>{fmtDate(e.timestamp)}</td>
-                        <td><span className="badge">{e.event}</span></td>
-                        <td>{e.path || "—"}</td>
-                        <td style={{ textAlign: "right" }}>{e.duration ? fmtSec(e.duration) : "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            !detail.data?.available ? <Empty text="Session detail unavailable (query failed or not verified yet)." /> : (
+              <DataTable
+                rows={detail.data.rows || []}
+                emptyText="No events for this session."
+                columns={[
+                  { key: "timestamp", label: "Time", render: (e) => fmtDate(e.timestamp) },
+                  { key: "event", label: "Event", render: (e) => <span className="badge">{e.event}</span> },
+                  { key: "path", label: "Path", render: (e) => e.path || "—" },
+                  { key: "duration", label: "Active time", align: "right", render: (e) => (e.duration ? fmtSec(e.duration) : "—") },
+                ]}
+              />
             )
           )}
         </div>

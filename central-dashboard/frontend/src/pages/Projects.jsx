@@ -4,6 +4,7 @@ import { useApi } from "../lib/useApi.js";
 import { useFilters } from "../components/Layout.jsx";
 import DataTable from "../components/DataTable.jsx";
 import DomainChips from "../components/DomainChips.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 import { ErrorState } from "../components/StateViews.jsx";
 import { PageSkeleton } from "../components/Skeleton.jsx";
 import { fmtBytes, fmtNumber } from "../lib/format.js";
@@ -28,7 +29,16 @@ export default function Projects() {
 
   return (
     <>
-      <h2 className="pagetitle">Projects <span className="sub">Zones · Workers · Pages (auto-discovered){scope}</span></h2>
+      <PageHeader
+        title="Projects"
+        sub={`Zones · Workers · Pages (auto-discovered)${scope}`}
+        items={[
+          "Every Zone, Worker and Pages project Cloudflare reports, auto-discovered across your accounts, with its linked domains.",
+          "Requests / Bandwidth are resolved through the project's backing Cloudflare zone(s) for the selected date range - a Pages project with no Cloudflare zone shows — (Not available), never a guess.",
+          "Workers report requests + errors but Cloudflare gives no per-worker bandwidth.",
+          "The filter bar narrows this table: Account limits rows to that account; selecting a Project or Domain filters to it.",
+        ]}
+      />
       <DataTable
         columns={[
           { key: "type", label: "Type", width: "120px", render: (r) => (
@@ -41,14 +51,14 @@ export default function Projects() {
             </div>
           ) },
           { key: "account", label: "Account", width: "150px", render: (r) => r.account || NA() },
-          { key: "domainCount", label: "# Domains", width: "70px", align: "right", render: (r) => fmtNumber(r.domainCount || 0) },
+          { key: "domainCount", label: "# Domains", width: "90px", align: "right", hint: "Domains linked to this project (apex + discovered subdomains).", render: (r) => fmtNumber(r.domainCount || 0) },
           {
             key: "domains",
             label: "Linked Domains",
             render: (r) => <DomainChips domains={r.domains || []} />,
           },
-          { key: "requests", label: "Requests", width: "110px", align: "right", render: (r) => (r.requests != null ? fmtNumber(r.requests) : Dash()) },
-          { key: "bandwidthBytes", label: "Bandwidth", width: "110px", align: "right", render: (r) => (r.bandwidthBytes != null ? fmtBytes(r.bandwidthBytes) : Dash()) },
+          { key: "requests", label: "Requests", width: "110px", align: "right", hint: "Cloudflare requests for the project's zone(s) in the selected period. — means no backing zone / no data.", render: (r) => (r.requests != null ? fmtNumber(r.requests) : Dash()) },
+          { key: "bandwidthBytes", label: "Bandwidth", width: "110px", align: "right", hint: "Response bytes served by the project's zone(s). Not reported per Worker.", render: (r) => (r.bandwidthBytes != null ? fmtBytes(r.bandwidthBytes) : Dash()) },
         ]}
         rows={data?.rows || []}
       />

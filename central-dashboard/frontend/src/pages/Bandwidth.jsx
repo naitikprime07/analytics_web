@@ -4,6 +4,7 @@ import { useApi } from "../lib/useApi.js";
 import { useFilters } from "../components/Layout.jsx";
 import { ErrorState } from "../components/StateViews.jsx";
 import { PageSkeleton } from "../components/Skeleton.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 import { fmtNumber, fmtBytes, fmtDate } from "../lib/format.js";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -24,7 +25,15 @@ export default function Bandwidth() {
 
   return (
     <>
-      <h2 className="pagetitle">Bandwidth over time <span className="sub">bytes served (MB)</span></h2>
+      <PageHeader
+        title="Bandwidth over time"
+        sub="bytes served (MB)"
+        items={[
+          "Cloudflare-native BYTES served over time (shown in MB) for the current filter selection.",
+          "This is bandwidth, a different metric from request count (see Requests page).",
+          "Ranges wider than 3 days are automatically bucketed daily.",
+        ]}
+      />
       <div className="card">
         {series.length ? (
           <div style={{ width: "100%", height: 320 }}>

@@ -3,6 +3,7 @@ import { api } from "../api/client.js";
 import { useApi } from "../lib/useApi.js";
 import { useFilters } from "../components/Layout.jsx";
 import TrafficChart from "../components/TrafficChart.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 import { ErrorState } from "../components/StateViews.jsx";
 import { PageSkeleton } from "../components/Skeleton.jsx";
 
@@ -17,7 +18,15 @@ export default function Requests() {
   const series = (data?.series || []).map((s) => ({ t: s.t, requests: s.requests }));
   return (
     <>
-      <h2 className="pagetitle">Requests over time <span className="sub">count only</span></h2>
+      <PageHeader
+        title="Requests over time"
+        sub="count only"
+        items={[
+          "Cloudflare-native HTTP REQUEST count over time for the current filter selection.",
+          "This is a count of requests only - it is not bandwidth (see Bandwidth page) and not unique users.",
+          "Ranges wider than 3 days are automatically bucketed daily (Cloudflare hourly data caps at 3 days).",
+        ]}
+      />
       <div className="card">
         <RequestsOnlyChart series={series} />
       </div>

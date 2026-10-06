@@ -3,6 +3,7 @@ import { api } from "../api/client.js";
 import { useApi } from "../lib/useApi.js";
 import { useFilters } from "../components/Layout.jsx";
 import DataTable from "../components/DataTable.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 import { ErrorState } from "../components/StateViews.jsx";
 import { PageSkeleton } from "../components/Skeleton.jsx";
 import { fmtNumber } from "../lib/format.js";
@@ -21,7 +22,15 @@ export default function Errors() {
 
   return (
     <>
-      <h2 className="pagetitle">Errors <span className="sub">HTTP 4xx/5xx</span></h2>
+      <PageHeader
+        title="Errors"
+        sub="HTTP 4xx/5xx"
+        items={[
+          "HTTP error responses Cloudflare recorded (4xx client + 5xx server) for the current filter selection.",
+          "The breakdown lists only the status codes Cloudflare actually returns - no invented rows. Totals sum those codes.",
+          "4xx = client errors (e.g. 404), 5xx = server errors. Use the filter bar to check a specific account/project/domain.",
+        ]}
+      />
       <div className="stats">
         <div className="statcard"><div className="stat-num">{fmtNumber(total4)}</div><div className="stat-label">4xx requests</div></div>
         <div className="statcard"><div className="stat-num">{fmtNumber(total5)}</div><div className="stat-label">5xx requests</div></div>
@@ -30,8 +39,8 @@ export default function Errors() {
         <h3>Status breakdown</h3>
         <DataTable
           columns={[
-            { key: "status", label: "Status code" },
-            { key: "requests", label: "Requests", render: (r) => fmtNumber(r.requests) },
+            { key: "status", label: "Status code", hint: "The HTTP status Cloudflare returned." },
+            { key: "requests", label: "Requests", hint: "How many responses had this status.", render: (r) => fmtNumber(r.requests) },
           ]}
           rows={rows.slice().sort((a, b) => (b.requests || 0) - (a.requests || 0))}
         />

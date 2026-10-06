@@ -3,6 +3,7 @@ import { api } from "../api/client.js";
 import { useApi } from "../lib/useApi.js";
 import { useFilters } from "../components/Layout.jsx";
 import DataTable from "../components/DataTable.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 import { ErrorState, NotAvailable } from "../components/StateViews.jsx";
 import { PageSkeleton } from "../components/Skeleton.jsx";
 
@@ -22,7 +23,14 @@ export default function Pages() {
   const scope = (f.account ? ` · account: ${f.account}` : "") + (f.project ? ` · filtered to ${f.project}` : "");
   return (
     <>
-      <h2 className="pagetitle">Pages projects <span className="sub">{rows.length} shown{scope}</span></h2>
+      <PageHeader
+        title="Pages projects"
+        sub={`${rows.length} shown${scope}`}
+        items={[
+          "Cloudflare Pages projects (name, production subdomain, branch) for the current account/project filter.",
+          "Cloudflare does not expose Pages traffic as a separate metric, so Traffic is Not available here - select the project's linked custom domain to view its zone analytics instead.",
+        ]}
+      />
       <DataTable
         columns={[
           { key: "pagesName", label: "Project" },

@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { api } from "../api/client.js";
 import { useApi } from "../lib/useApi.js";
 import { useFilters } from "../components/Layout.jsx";
+import DataTable from "../components/DataTable.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 import { ErrorState, Empty } from "../components/StateViews.jsx";
 import { PageSkeleton } from "../components/Skeleton.jsx";
 import { fmtNumber, fmtDate } from "../lib/format.js";
@@ -17,7 +19,7 @@ function fmtSec(s) {
 export default function Visitors() {
   const f = useFilters();
   const deps = [f.account, f.project, f.domain, f.preset, f.from, f.to];
-  const params = { project: f.project, domain: f.domain, preset: f.preset, from: f.from, to: f.to };
+  const params = { account: f.account, project: f.project, domain: f.domain, preset: f.preset, from: f.from, to: f.to };
 
   const [sel, setSel] = useState(null);
   const list = useApi(() => api.visitors(params), deps);
@@ -45,40 +47,38 @@ export default function Visitors() {
 
   return (
     <>
-      <h2 className="pagetitle">Visitors <span className="badge">custom tracked</span></h2>
+      <PageHeader
+        title="Visitors"
+        badge="custom tracked"
+        items={[
+          "One row per anonymous visitor (a browser/device), custom-tracked by analytics.js via Workers Analytics Engine. No personal data or names are stored.",
+          "Sessions = grouped visits (new one after 30 min idle); Page views = page_view events; Last seen = most recent activity (IST).",
+          "Click a visitor to expand their full journey, grouped session by session. Scope follows the filter bar (Account, Project, Domain).",
+          "Rolling 30-day window.",
+        ]}
+      />
       <p className="foot" style={{ marginTop: "-8px", marginBottom: 18 }}>
         Anonymous visitor IDs (browser/device), grouped into sessions. No personal data. Rolling 30-day window.
       </p>
 
       {rows == null ? (
         <Empty text="Visitor data unavailable right now (Analytics Engine query failed or not verified yet)." />
-      ) : !rows.length ? (
-        <Empty text="No tracked visitors yet. Install analytics.js and complete Phase 0/1." />
       ) : (
-        <div className="tablewrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Visitor</th><th>Country</th><th>Domain</th>
-                <th style={{ textAlign: "right" }}>Sessions</th>
-                <th style={{ textAlign: "right" }}>Page views</th>
-                <th>Last seen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.visitorId} onClick={() => setSel(r.visitorId)} style={{ cursor: "pointer" }}>
-                  <td><code>{String(r.visitorId).slice(0, 10)}</code></td>
-                  <td>{r.country || "—"}</td>
-                  <td>{r.domain || "—"}</td>
-                  <td style={{ textAlign: "right" }}>{fmtNumber(r.sessions)}</td>
-                  <td style={{ textAlign: "right" }}>{fmtNumber(r.pageViews)}</td>
-                  <td>{fmtDate(r.lastSeen)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={rows}
+          rowKey={(r) => r.visitorId}
+          onRowClick={(r) => setSel(r.visitorId)}
+          isSelected={(r) => r.visitorId === sel}
+          emptyText="No tracked visitors yet. Install analytics.js and complete Phase 0/1."
+          columns={[
+            { key: "visitorId", label: "Visitor", hint: "Anonymous browser/device ID (first characters shown).", render: (r) => <code>{String(r.visitorId).slice(0, 10)}</code> },
+            { key: "country", label: "Country", render: (r) => r.country || "—" },
+            { key: "domain", label: "Domain", render: (r) => r.domain || "—" },
+            { key: "sessions", label: "Sessions", align: "right", hint: "Number of separate visits in the window.", render: (r) => fmtNumber(r.sessions) },
+            { key: "pageViews", label: "Page views", align: "right", render: (r) => fmtNumber(r.pageViews) },
+            { key: "lastSeen", label: "Last seen", hint: "Most recent activity time (IST).", render: (r) => fmtDate(r.lastSeen) },
+          ]}
+        />
       )}
 
       {sel && (
@@ -94,21 +94,15 @@ export default function Visitors() {
                 <h4 style={{ margin: "6px 0" }}>
                   Session {i + 1} <span className="sub"><code>{String(g.sessionId).slice(0, 10)}</code></span>
                 </h4>
-                <div className="tablewrap">
-                  <table>
-                    <thead><tr><th>Time</th><th>Event</th><th>Path</th><th style={{ textAlign: "right" }}>Active time</th></tr></thead>
-                    <tbody>
-                      {g.rows.map((e, j) => (
-                        <tr key={j}>
-                          <td>{fmtDate(e.timestamp)}</td>
-                          <td><span className="badge">{e.event}</span></td>
-                          <td>{e.path || "—"}</td>
-                          <td style={{ textAlign: "right" }}>{e.duration ? fmtSec(e.duration) : "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable
+                  rows={g.rows}
+                  columns={[
+                    { key: "timestamp", label: "Time", render: (e) => fmtDate(e.timestamp) },
+                    { key: "event", label: "Event", render: (e) => <span className="badge">{e.event}</span> },
+                    { key: "path", label: "Path", render: (e) => e.path || "—" },
+                    { key: "duration", label: "Active time", align: "right", render: (e) => (e.duration ? fmtSec(e.duration) : "—") },
+                  ]}
+                />
               </div>
             ))
           )}

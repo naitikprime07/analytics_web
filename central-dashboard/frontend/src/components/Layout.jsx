@@ -42,6 +42,7 @@ export default function Layout() {
   const [accounts, setAccounts] = useState([]);
   const [projects, setProjects] = useState([]);
   const [domains, setDomains] = useState([]);
+  const [tracked, setTracked] = useState([]);
   const [account, setAccount] = useState(null);
   const [loadErr, setLoadErr] = useState("");
 
@@ -67,6 +68,18 @@ export default function Layout() {
     navigate({ pathname: location.pathname, search: q.toString() });
   };
 
+  // Hostnames actually present in tracked (Analytics Engine) data, scoped to the
+  // current account/project. Merged into the Domain dropdown below so a host that
+  // is NOT a Cloudflare zone (Pages/external) is still selectable + filterable.
+  useEffect(() => {
+    let alive = true;
+    api
+      .trackedDomains({ account: filters.account, project: filters.project })
+      .then((r) => alive && setTracked(r.rows || []))
+      .catch(() => alive && setTracked([]));
+    return () => { alive = false; };
+  }, [filters.account, filters.project]);
+
   // projects scoped to the selected account (account-wise separation)
   const projectsForAccount = useMemo(() => {
     if (!filters.account) return projects;
@@ -74,18 +87,30 @@ export default function Layout() {
   }, [projects, filters.account]);
 
   const domainsForProject = useMemo(() => {
-    let pool = domains;
-    if (filters.account) pool = pool.filter((d) => d.account === filters.account);
-    if (!filters.project) return pool;
-    // domains are tagged with their project (backend discovers apex + subdomains)
-    const byProject = pool.filter((d) => d.project === filters.project);
-    if (byProject.length) return byProject;
-    // fallback: match the project's own domains list
-    const proj = projects.find((p) => p.name === filters.project);
-    if (!proj || !proj.domains || !proj.domains.length) return pool;
-    const set = new Set(proj.domains);
-    return pool.filter((d) => set.has(d.domain));
-  }, [projects, domains, filters.project, filters.account]);
+    // merge Cloudflare-discovered domains with tracked hostnames (dedup by name)
+    const map = new Map();
+    for (const d of domains) map.set(d.domain, { ...d });
+    for (const t of tracked) {
+      if (!map.has(t.domain)) {
+        map.set(t.domain, {
+          domain: t.domain,
+          project: t.project || filters.project || null,
+          account: filters.account || null,
+          tracked: true,
+        });
+      }
+    }
+    let pool = [...map.values()];
+    // account-wise narrowing (discovered rows carry their own account; the tracked
+    // list is already server-scoped to the account, so keep those)
+    if (filters.account) pool = pool.filter((d) => d.account === filters.account || d.tracked);
+    // project-wise narrowing
+    if (filters.project) {
+      const inProj = pool.filter((d) => d.project === filters.project || d.tracked);
+      if (inProj.length) pool = inProj;
+    }
+    return pool.sort((a, b) => String(a.domain).localeCompare(String(b.domain)));
+  }, [domains, tracked, filters.project, filters.account]);
 
   return (
     <FiltersContext.Provider value={filters}>

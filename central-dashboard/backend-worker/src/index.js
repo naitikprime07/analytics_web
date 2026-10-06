@@ -36,6 +36,7 @@ import {
   navigationFlow,
   listVisitors,
   visitorJourney,
+  trackedDomains,
 } from "./analytics-engine.js";
 
 const DAY = 86400000;
@@ -136,6 +137,7 @@ const ROUTES = {
   "/api/analytics/sessions": handleSessions,
   "/api/analytics/navigation": handleNavigation,
   "/api/analytics/visitors": handleVisitors,
+  "/api/analytics/tracked-domains": handleTrackedDomains,
 };
 
 // resolve which zoneTags (+ optional host) to query based on project/domain filter
@@ -533,6 +535,11 @@ async function handleVisitors(req, url, env) {
   if (id) return visitorJourney(env, opts, id); // individual journey: no cache
   const rows = await cached(url, env, () => listVisitors(env, opts), "jvisitors");
   return { rows };
+}
+async function handleTrackedDomains(req, url, env) {
+  const opts = await journeyOpts(url, env);
+  const rows = await cached(url, env, () => trackedDomains(env, opts), "jdomains");
+  return { rows: rows || [] };
 }
 
 // ---- date window helpers ----

@@ -3,6 +3,7 @@ import { api } from "../api/client.js";
 import { useApi } from "../lib/useApi.js";
 import { useFilters } from "../components/Layout.jsx";
 import DataTable from "../components/DataTable.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 import { ErrorState, NotAvailable } from "../components/StateViews.jsx";
 import { PageSkeleton } from "../components/Skeleton.jsx";
 import { fmtNumber, fmtBytes } from "../lib/format.js";
@@ -16,12 +17,20 @@ export default function Countries() {
 
   return (
     <>
-      <h2 className="pagetitle">Countries <span className="sub">requests + bandwidth (not users)</span></h2>
+      <PageHeader
+        title="Countries"
+        sub="requests + bandwidth (not users)"
+        items={[
+          "Cloudflare-native request and bandwidth totals grouped by visitor country for the current filter selection.",
+          "These are request/bandwidth counts, NOT unique users - Cloudflare does not report people here.",
+          "City-level breakdown is Not available from Cloudflare's native analytics.",
+        ]}
+      />
       <DataTable
         columns={[
           { key: "country", label: "Country" },
-          { key: "requests", label: "Requests", render: (r) => fmtNumber(r.requests) },
-          { key: "bandwidthBytes", label: "Bandwidth", render: (r) => fmtBytes(r.bandwidthBytes) },
+          { key: "requests", label: "Requests", hint: "HTTP requests from this country.", render: (r) => fmtNumber(r.requests) },
+          { key: "bandwidthBytes", label: "Bandwidth", hint: "Response bytes served to this country.", render: (r) => fmtBytes(r.bandwidthBytes) },
         ]}
         rows={data?.rows || []}
       />

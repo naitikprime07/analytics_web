@@ -313,6 +313,30 @@ export async function listVisitors(env, opts) {
   }));
 }
 
+/** Distinct tracked hostnames (blob3) with a representative project + page-view
+ *  count. Used to populate the Domain filter for tracked data, including hosts
+ *  that are NOT a Cloudflare zone (Pages/external), so domain-wise filtering works
+ *  on the User Journey pages. Honors the same account/project/domain scope opts. */
+export async function trackedDomains(env, opts) {
+  const rows = await q(env, `
+    SELECT blob3 AS domain,
+           argMax(blob2, timestamp) AS project,
+           countIf(blob1 = 'page_view') AS pageViews,
+           max(timestamp) AS lastSeen
+    FROM ${DATASET} WHERE ${where(opts)} AND blob3 != ''
+    GROUP BY domain ORDER BY pageViews DESC LIMIT 500
+  `);
+  if (!rows) return null;
+  return rows
+    .filter((r) => r.domain)
+    .map((r) => ({
+      domain: r.domain,
+      project: r.project || null,
+      pageViews: num(r.pageViews),
+      lastSeen: r.lastSeen,
+    }));
+}
+
 /** Ordered events for one visitor across all their sessions (grouped client-side). */
 export async function visitorJourney(env, opts, visitorId) {
   const id = safeVal(visitorId);

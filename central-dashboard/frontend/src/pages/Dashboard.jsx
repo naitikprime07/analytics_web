@@ -5,6 +5,7 @@ import { useFilters } from "../components/Layout.jsx";
 import StatCard from "../components/StatCard.jsx";
 import TrafficChart from "../components/TrafficChart.jsx";
 import DataTable from "../components/DataTable.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 import { ErrorState, NotAvailable } from "../components/StateViews.jsx";
 import { PageSkeleton, SkeletonTable, Sk } from "../components/Skeleton.jsx";
 import { fmtBytes, fmtNumber } from "../lib/format.js";
@@ -23,15 +24,23 @@ export default function Dashboard() {
 
   return (
     <>
-      <h2 className="pagetitle">Central Cloudflare Analytics</h2>
+      <PageHeader
+        title="Central Cloudflare Analytics"
+        items={[
+          "Requests and Bandwidth are Cloudflare-native numbers for the current filter selection (Account / Project / Domain / date).",
+          "Total Domains / Projects count what the selected account exposes; they do NOT change with the date range.",
+          "Error Requests = HTTP 4xx+5xx across the selected zones. Unique Users is Not available - Cloudflare counts requests, not people.",
+          "Traffic chart plots Requests (left axis) and Bandwidth (right axis, MB) over time. Times are shown in India Standard Time (IST).",
+        ]}
+      />
 
       <div className="stats">
-        <StatCard metric={d.totals.requests} />
-        <StatCard metric={d.totals.bandwidth} />
-        <StatCard metric={{ available: true, label: "Total Domains" }} valueLabel={fmtNumber(d.counts.domains)} />
-        <StatCard metric={{ available: true, label: "Total Projects" }} valueLabel={fmtNumber(d.counts.projects)} />
-        <StatCard metric={d.errorRequests} />
-        <StatCard metric={d.uniqueUsers} />
+        <StatCard metric={d.totals.requests} hint="Total HTTP requests Cloudflare served for the current selection." />
+        <StatCard metric={d.totals.bandwidth} hint="Total response bytes served (Cloudflare-native)." />
+        <StatCard metric={{ available: true, label: "Total Domains" }} valueLabel={fmtNumber(d.counts.domains)} hint="Domains (apex + discovered subdomains) available for the current account selection." />
+        <StatCard metric={{ available: true, label: "Total Projects" }} valueLabel={fmtNumber(d.counts.projects)} hint="Zones + Pages projects available for the current account (Workers excluded)." />
+        <StatCard metric={d.errorRequests} hint="HTTP 4xx + 5xx responses in the selected period." />
+        <StatCard metric={d.uniqueUsers} hint="Cloudflare reports requests, not unique visitors - so this is intentionally Not available." />
       </div>
 
       <div className="card">

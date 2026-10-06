@@ -44,4 +44,6 @@ export const api = {
   navigation: (p) => get("/api/analytics/navigation", p),
   visitors: (p) => get("/api/analytics/visitors", p),
   visitorDetail: (p) => get("/api/analytics/visitors", p),
+  // distinct tracked hostnames (Analytics Engine blob3) for the Domain filter
+  trackedDomains: (p) => get("/api/analytics/tracked-domains", p),
 };

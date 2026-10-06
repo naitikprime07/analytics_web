@@ -482,3 +482,165 @@ td {
   color: var(--accent);
   text-transform: uppercase;
 }
+
+/* Page header + expandable "about this page" info panel */
+.pagehead {
+  margin-bottom: 18px;
+}
+
+.pagehead .pagetitle {
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.info-btn {
+  margin-left: 10px;
+  width: 18px;
+  height: 18px;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #1b1430;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.info-btn:hover,
+.info-btn.on {
+  background: var(--accent2);
+  color: #fff;
+  border-color: var(--accent2);
+}
+
+.pageinfo {
+  margin-top: 12px;
+  background: #100b1d;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-size: 13px;
+  color: #d8d3ea;
+}
+
+.pageinfo h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.pageinfo ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.pageinfo li {
+  margin: 4px 0;
+  line-height: 1.45;
+}
+
+/* Inline metric/column tooltip (the little "i") */
+.infotip {
+  position: relative;
+  display: inline-block;
+  margin-left: 6px;
+  width: 14px;
+  height: 14px;
+  line-height: 13px;
+  text-align: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #1b1430;
+  color: var(--muted);
+  font-size: 10px;
+  font-style: italic;
+  font-weight: 700;
+  cursor: help;
+  vertical-align: middle;
+}
+
+.infotip:hover,
+.infotip:focus {
+  color: var(--accent);
+  border-color: var(--accent);
+  outline: none;
+}
+
+.infotip-bubble {
+  position: absolute;
+  bottom: 150%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 260px;
+  padding: 8px 10px;
+  background: #241a3d;
+  border: 1px solid var(--accent2);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  z-index: 30;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .5);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .12s ease;
+}
+
+.infotip:hover .infotip-bubble,
+.infotip:focus .infotip-bubble {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Table pagination controls */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pager-info {
+  margin-right: auto;
+}
+
+.pager-page {
+  min-width: 90px;
+  text-align: center;
+}
+
+.pager .chip.more:disabled {
+  opacity: .4;
+  cursor: default;
+}
+
+.pager .chip.more:disabled:hover {
+  background: transparent;
+}
+
+/* Clickable / selected rows (drill-down tables) */
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover {
+  background: #1b1430;
+}
+
+tbody tr.selected {
+  background: #241a3d;
+  outline: 1px solid var(--accent2);
+}
