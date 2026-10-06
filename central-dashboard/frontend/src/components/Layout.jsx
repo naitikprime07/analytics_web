@@ -8,22 +8,37 @@ import Icon from "./icons.jsx";
 const FiltersContext = createContext({});
 export const useFilters = () => useContext(FiltersContext);
 
-const NAV = [
-  ["Dashboard", "/", "dashboard"],
-  ["Projects", "/projects", "projects"],
-  ["Domains", "/domains", "domains"],
-  ["Traffic", "/traffic", "traffic"],
-  ["Countries", "/countries", "countries"],
-  ["Requests", "/requests", "requests"],
-  ["Bandwidth", "/bandwidth", "bandwidth"],
-  ["Workers", "/workers", "workers"],
-  ["Pages", "/pages", "pages"],
-  ["Errors", "/errors", "errors"],
-  ["Journey", "/journey", "journey"],
-  ["Sessions", "/sessions", "sessions"],
-  ["Visitors", "/visitors", "visitors"],
-  ["Visited Pages", "/visited-pages", "visited"],
-  ["Navigation", "/flow", "navigation"],
+// Sidebar is grouped by DATA SOURCE so it is obvious where each page's numbers
+// come from: "Cloudflare" = native/direct Cloudflare analytics (GraphQL),
+// "Custom tracked" = our analytics.js snippet -> Workers Analytics Engine.
+const NAV_GROUPS = [
+  {
+    label: "Cloudflare",
+    source: "cf",
+    items: [
+      ["Dashboard", "/", "dashboard"],
+      ["Projects", "/projects", "projects"],
+      ["Domains", "/domains", "domains"],
+      ["Traffic", "/traffic", "traffic"],
+      ["Countries", "/countries", "countries"],
+      ["Requests", "/requests", "requests"],
+      ["Bandwidth", "/bandwidth", "bandwidth"],
+      ["Workers", "/workers", "workers"],
+      ["Pages", "/pages", "pages"],
+      ["Errors", "/errors", "errors"],
+    ],
+  },
+  {
+    label: "Custom tracked",
+    source: "custom",
+    items: [
+      ["Journey", "/journey", "journey"],
+      ["Sessions", "/sessions", "sessions"],
+      ["Visitors", "/visitors", "visitors"],
+      ["Visited Pages", "/visited-pages", "visited"],
+      ["Navigation", "/flow", "navigation"],
+    ],
+  },
 ];
 
 const PRESETS = [
@@ -142,17 +157,25 @@ export default function Layout() {
             </button>
           </div>
           <nav>
-            {NAV.map(([label, to, icon]) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={to === "/"}
-                title={label}
-                className={({ isActive }) => "navitem" + (isActive ? " active" : "")}
-              >
-                <Icon name={icon} />
-                <span className="navlabel">{label}</span>
-              </NavLink>
+            {NAV_GROUPS.map((g) => (
+              <div className="navgroup" key={g.label}>
+                <div className="navgroup-label" title={g.label}>
+                  <span className={"navgroup-dot " + (g.source === "cf" ? "dot-cf" : "dot-custom")} />
+                  <span className="navgroup-text">{g.label}</span>
+                </div>
+                {g.items.map(([label, to, icon]) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    end={to === "/"}
+                    title={label}
+                    className={({ isActive }) => "navitem" + (isActive ? " active" : "")}
+                  >
+                    <Icon name={icon} />
+                    <span className="navlabel">{label}</span>
+                  </NavLink>
+                ))}
+              </div>
             ))}
           </nav>
           <div className="acct">
