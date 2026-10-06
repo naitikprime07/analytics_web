@@ -7,7 +7,7 @@
  * site source changes are required ("Only via Cloudflare").
  *
  * The snippet POSTs to the central backend Worker's public /api/track endpoint
- * (env.TRACK_ENDPOINT), which writes to Analytics Engine (central_user_journey).
+ * (env.TRACK_ENDPOINT), which writes to Analytics Engine (user_journey).
  * The backend resolves the tracked hostname to its project + account, so filtering
  * by project/account works for every site.
  *

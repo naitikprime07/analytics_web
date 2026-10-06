@@ -5,7 +5,7 @@ entry/exit, page→page navigation, individual visitor journeys) on top of the
 Cloudflare-native dashboard. It is a **separate, clearly-labeled** data source —
 custom-tracked numbers never mix with Cloudflare-native analytics.
 
-- **Store:** Workers Analytics Engine dataset `central_user_journey` (auto-creates on first write).
+- **Store:** Workers Analytics Engine dataset `user_journey` (auto-creates on first write).
 - **Ingest:** site snippet → `POST /api/track` (public) → `writeEvent()` → AE.
 - **Read:** dashboard → AE SQL API → Journey / Sessions / Visited Pages / Navigation / Visitors.
 - **Rollout — V1 (preferred):** embed the manual [`tracking/analytics.js`](./tracking/analytics.js)
@@ -18,7 +18,7 @@ custom-tracked numbers never mix with Cloudflare-native analytics.
   applied) so the injector does not break the origin response. See §3 Phase 2 and §5.
 
 ```
-Visitor ──► [analytics.js snippet]  ──POST /api/track──►  backend Worker ──► AE dataset (central_user_journey)
+Visitor ──► [analytics.js snippet]  ──POST /api/track──►  backend Worker ──► AE dataset (user_journey)
 Dashboard ───────────────────────── AE SQL read (30-day window) ─────► backend Worker ──► Journey pages
 ```
 
@@ -62,7 +62,7 @@ Dashboard ───────────────────────�
 ### 0.1 Analytics Engine SQL limits — verified live (Phase 0)
 
 We ran a real end-to-end POC (Browser → `/api/track` → AE → SQL → dashboard) against the
-live `central_user_journey` dataset. Workers Analytics Engine SQL is a **restricted
+live `user_journey` dataset. Workers Analytics Engine SQL is a **restricted
 ClickHouse subset**; the dashboard queries are written to the verified-supported subset only:
 
 | Not supported (returns HTTP 422) | Use instead (verified working) |
@@ -119,7 +119,7 @@ The correct model:
   ```toml
   [[analytics_engine_datasets]]
   binding = "AE"
-  dataset = "central_user_journey"
+  dataset = "user_journey"
   ```
 
 ---
@@ -298,7 +298,7 @@ Diagnose in this order:
    (local `.dev.vars`, prod `wrangler secret put`). A malformed value makes reads return `null`
    → the UI shows "Not available".
 3. **Confirm binding + dataset names match the code exactly.** `wrangler.toml` uses
-   `binding = "AE"` and `dataset = "central_user_journey"`; `src/analytics-engine.js` must
+   `binding = "AE"` and `dataset = "user_journey"`; `src/analytics-engine.js` must
    reference the same dataset. A mismatch means writes and reads hit different places silently.
 4. **Confirm the dashboard SQL uses the same dataset name.** A typo yields empty results with
    no error ("Not available"), never a fake number.

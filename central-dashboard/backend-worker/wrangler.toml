@@ -31,7 +31,7 @@ ALLOWED_ORIGINS = ""
 #   Account > Account Analytics > Read.
 [[analytics_engine_datasets]]
 binding = "AE"
-dataset = "central_user_journey"
+dataset = "user_journey"
 
 # Dashboard UI (React build) served from THIS Worker -> same origin as the API, so
 # Basic Auth covers the whole site. run_worker_first=true makes the Worker gate asset

@@ -10,5 +10,4 @@ compatibility_date = "2026-01-01"
 [vars]
 # Public URL of the central backend Worker's tracking ingest endpoint.
 # REQUIRED - if left empty the Worker passes traffic through untouched (no inject).
-# Example: "https://central-analytics-api.<your-sub>.workers.dev/api/track"
-TRACK_ENDPOINT = ""
+TRACK_ENDPOINT = "https://central-analytics-api.prime-2.workers.dev/api/track"

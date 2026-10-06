@@ -1,7 +1,7 @@
 /**
  * Workers Analytics Engine access for User Journey / custom activity.
  *
- * Dataset: central_user_journey  (auto-created on first write)
+ * Dataset: user_journey  (auto-created on first write)
  * Locked schema (Phase 0 verified field order -> freeze):
  *   blob1 event | blob2 project | blob3 domain | blob4 path | blob5 referrer
  *   blob6 country | blob7 visitorId | blob8 sessionId
@@ -18,7 +18,7 @@
  * Cloudflare analytics path).
  */
 
-const DATASET = "central_user_journey";
+const DATASET = "user_journey";
 
 // event types we accept (whitelist) - anything else is dropped at the endpoint.
 // Spec model: page_view, page_duration, navigation, session_activity. There is NO

@@ -2,7 +2,7 @@
  * User Journey tracking snippet - manual embed (V1 preferred path).
  * Drop this on each site you want to measure. It POSTs events to the central
  * Worker's public /api/track endpoint, which writes to Workers Analytics Engine
- * (dataset: central_user_journey). The edge injector (../injector-worker) uses the
+ * (dataset: user_journey). The edge injector (../injector-worker) uses the
  * exact same event model via src/snippet.js.
  *
  * Install (one <script> tag per site, e.g. before </head>):
@@ -34,11 +34,7 @@
   if (!script) return;
   if (navigator.doNotTrack === "1" || window.doNotTrack === "1") return;
 
-  // Endpoint: explicit data-endpoint wins; otherwise derive from THIS script's own
-  // origin (so a centrally-hosted /analytics.js posts back to the same central Worker
-  // /api/track automatically - zero per-site config); else same-origin (local dev).
-  var ENDPOINT = script.getAttribute("data-endpoint") ||
-    (script.src ? new URL(script.src, location.href).origin + "/api/track" : "/api/track");
+  var ENDPOINT = script.getAttribute("data-endpoint") || "/api/track";
   var PROJECT = script.getAttribute("data-project") || location.hostname;
   var IDLE = 30 * 60 * 1000; // 30 min idle -> new session
   var HB = 30000; // visible heartbeat interval

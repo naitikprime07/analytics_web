@@ -288,11 +288,11 @@ track kare: page views, sessions, **active (tab-visible) time-on-page**, entry/e
 page→page navigation flow, ane individual visitor journeys.
 Full rollout guide + code: **[`USER-JOURNEY.md`](./USER-JOURNEY.md)**.
 
-- **Store:** Workers Analytics Engine dataset `central_user_journey` (binding `AE`).
+- **Store:** Workers Analytics Engine dataset `user_journey` (binding `AE`).
   Writes go through `POST /api/track` -> `writeEvent()`; reads through the AE SQL API.
 - **Central dataset ownership:** the **central backend Worker owns this dataset and is its
   single writer.** Every tracked domain/account POSTs to that one Worker's `/api/track`,
-  which writes into that one `central_user_journey`. It is **not** a per-account copy -
+  which writes into that one `user_journey`. It is **not** a per-account copy -
   Account A and Account B do **not** each own a copy; all events pool into the central one.
   Each stored event preserves its source fields (actual schema): `event` (blob1),
   `project` (blob2), `domain` (blob3), `path` (blob4), `visitorId` (blob7),
@@ -337,9 +337,9 @@ Do **not** jump to "the token is missing a scope" - that scope does not exist. D
 2. **Confirm `CF_API_TOKEN` + `CF_ACCOUNT_ID`** are set with no stray whitespace/newline
    (local: `.dev.vars`; prod: `wrangler secret put`). A read returns null if these are off.
 3. **Confirm the binding + dataset names match the code exactly:** `wrangler.toml` uses
-   `binding = "AE"` / `dataset = "central_user_journey"`; the query code must reference the
+   `binding = "AE"` / `dataset = "user_journey"`; the query code must reference the
    same. A mismatch = writes/reads silently hit different places.
-4. **Confirm the dashboard SQL uses the same dataset name** (`central_user_journey`). A
+4. **Confirm the dashboard SQL uses the same dataset name** (`user_journey`). A
    typo here yields empty results / "Not available" with no error.
 
 > Note: in **local** `wrangler dev` (without `--remote`) AE writes are buffered in the
