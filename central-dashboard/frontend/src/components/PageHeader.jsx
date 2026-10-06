@@ -1,12 +1,58 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 
 // Inline "i" info dot with a hover/focus tooltip bubble. Used for metric and
 // column hints so an unclear number can be explained in place.
 export function InfoTip({ text }) {
+  const ref = useRef(null);
+  const [pos, setPos] = useState(null); // {x,y,below} viewport px, null = hidden
+
+  // Render the bubble with position:fixed computed from the dot's rect so it
+  // escapes any overflow/scroll ancestor (e.g. .tablewrap overflow-x:auto clips
+  // an absolutely-positioned tooltip down to a sliver). Flip below when there is
+  // no room above, and clamp horizontally so it never runs off the viewport.
+  const show = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const below = r.top < 90;
+    const half = 140; // ~bubble max-width / 2
+    const x = Math.min(Math.max(r.left + r.width / 2, half + 8), window.innerWidth - half - 8);
+    setPos({ x, y: below ? r.bottom : r.top, below });
+  }, []);
+  const hide = useCallback(() => setPos(null), []);
+
   if (!text) return null;
   return (
-    <span className="infotip" tabIndex={0} role="button" aria-label={text} title={text}>
-      i<span className="infotip-bubble" role="tooltip">{text}</span>
+    <span
+      ref={ref}
+      className="infotip"
+      tabIndex={0}
+      role="button"
+      aria-label={text}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (pos) hide();
+        else show();
+      }}
+    >
+      i
+      {pos && (
+        <span
+          className="infotip-bubble"
+          role="tooltip"
+          style={{
+            top: pos.y,
+            left: pos.x,
+            transform: pos.below ? "translate(-50%, 8px)" : "translate(-50%, calc(-100% - 8px))",
+          }}
+        >
+          {text}
+        </span>
+      )}
     </span>
   );
 }

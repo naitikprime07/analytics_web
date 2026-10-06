@@ -572,10 +572,9 @@ td {
 }
 
 .infotip-bubble {
-  position: absolute;
-  bottom: 150%;
-  left: 50%;
-  transform: translateX(-50%);
+  /* position:fixed (coords + flip set inline by InfoTip) so the tooltip escapes
+     any overflow/scroll ancestor like .tablewrap instead of being clipped. */
+  position: fixed;
   width: max-content;
   max-width: 260px;
   padding: 8px 10px;
@@ -589,18 +588,9 @@ td {
   line-height: 1.4;
   text-align: left;
   white-space: normal;
-  z-index: 30;
+  z-index: 1000;
   box-shadow: 0 6px 20px rgba(0, 0, 0, .5);
-  opacity: 0;
-  visibility: hidden;
   pointer-events: none;
-  transition: opacity .12s ease;
-}
-
-.infotip:hover .infotip-bubble,
-.infotip:focus .infotip-bubble {
-  opacity: 1;
-  visibility: visible;
 }
 
 /* Table pagination controls */
