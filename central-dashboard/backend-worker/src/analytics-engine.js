@@ -77,6 +77,20 @@ function safeVal(s) {
   return typeof s === "string" && /^[A-Za-z0-9 .:_\-/]{1,200}$/.test(s) ? s : null;
 }
 
+// Normalize a page_view referrer to a path. On traditional multi-page sites the
+// snippet stores the full previous URL (document.referrer) in blob5; on SPAs it
+// stores the previous pathname. Reduce both to a comparable "/path" for the flow.
+function toPath(v) {
+  const s = String(v == null ? "" : v).trim();
+  if (!s) return "";
+  if (s[0] === "/") return s;
+  try {
+    return new URL(s).pathname;
+  } catch {
+    return s;
+  }
+}
+
 async function runSql(env, sql) {
   const api = `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/analytics_engine/sql`;
   const res = await fetch(api, {
@@ -276,15 +290,37 @@ export async function sessionDetail(env, opts, sessionId) {
   };
 }
 
-/** Page -> page flow, built from navigation events (blob5=from, blob4=to). */
+/** Page -> page flow.
+ *  Derived from page_view referrers (blob5 = the page the visitor came FROM,
+ *  blob4 = the page they landed ON). This works for BOTH traditional multi-page
+ *  sites (full loads -> document.referrer carries the previous URL) and SPAs
+ *  (route changes -> the snippet sends the previous pathname). The dedicated
+ *  'navigation' event only fires on client-side route changes, so relying on it
+ *  left multi-page sites (e.g. xixvideohub.com) with an always-empty flow.
+ *  Referrers are normalized to a path, self-transitions (same-page reloads) are
+ *  dropped, and pairs are re-aggregated in JS. */
 export async function navigationFlow(env, opts) {
   const rows = await q(env, `
     SELECT blob5 AS referrer, blob4 AS path, count() AS transitions
-    FROM ${DATASET} WHERE ${where(opts)} AND blob1 = 'navigation' AND blob5 != ''
-    GROUP BY referrer, path ORDER BY transitions DESC LIMIT 50
+    FROM ${DATASET} WHERE ${where(opts)} AND blob1 = 'page_view' AND blob5 != ''
+    GROUP BY referrer, path ORDER BY transitions DESC LIMIT 300
   `);
   if (!rows) return null;
-  return rows.map((r) => ({ referrer: r.referrer, path: r.path, transitions: num(r.transitions) }));
+  const agg = new Map();
+  for (const r of rows) {
+    const from = toPath(r.referrer);
+    const to = toPath(r.path);
+    if (!from || !to || from === to) continue; // skip empty + same-page reloads
+    const key = from + "\u0000" + to;
+    agg.set(key, (agg.get(key) || 0) + num(r.transitions));
+  }
+  return [...agg.entries()]
+    .map(([k, transitions]) => {
+      const i = k.indexOf("\u0000");
+      return { referrer: k.slice(0, i), path: k.slice(i + 1), transitions };
+    })
+    .sort((a, b) => b.transitions - a.transitions)
+    .slice(0, 50);
 }
 
 /** Visitors list (for the individual-journey view). */

@@ -25,8 +25,8 @@ export default function Navigation() {
         title="Navigation Flow"
         badge="custom tracked"
         items={[
-          "Page-to-page transitions built from custom-tracked navigation events (page → page), NOT the HTTP referrer.",
-          "From = the previous page; To = the page navigated to; Transitions = how often that step happened in the window.",
+          "Page-to-page transitions derived from page-view referrers: the page a visitor came FROM -> the page they landed ON. Works for both traditional multi-page sites and SPAs.",
+          "From = previous page; To = current page; Transitions = how often that step happened in the window. Same-page reloads are excluded.",
           "Scope follows the filter bar (Account, Project, Domain). Rolling 30-day window.",
         ]}
       />
@@ -36,7 +36,7 @@ export default function Navigation() {
       {rows == null ? (
         <Empty text="Navigation data unavailable right now (Analytics Engine query failed or not verified yet)." />
       ) : !rows.length ? (
-        <Empty text="No tracked navigations yet. Install analytics.js and complete Phase 0/1." />
+        <Empty text="No page-to-page transitions yet - a visitor needs at least two page views in one visit." />
       ) : (
         <DataTable
           columns={[
@@ -47,7 +47,7 @@ export default function Navigation() {
           rows={rows}
         />
       )}
-      <p className="foot">Built from navigation events (page → page), not the HTTP referrer.</p>
+      <p className="foot">Derived from page-view referrers (previous page → current page), so it works for multi-page and single-page sites.</p>
     </>
   );
 }
