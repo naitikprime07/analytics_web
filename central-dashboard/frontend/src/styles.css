@@ -891,3 +891,82 @@ tbody tr.selected {
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+
+/* Countries name list (flag + name + share bar) on the Dashboard */
+.countrylist {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.countrylist li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.cl-flag {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.cl-main {
+  min-width: 0;
+}
+
+.cl-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cl-name em {
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 400;
+  font-size: 11px;
+  margin-left: 6px;
+}
+
+.cl-bar {
+  display: block;
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 4px;
+  background: #241d38;
+  overflow: hidden;
+}
+
+.cl-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent2), var(--accent));
+  transition: width .3s ease;
+}
+
+.cl-nums {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cl-req {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cl-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}

@@ -4,7 +4,7 @@ import { useApi } from "../lib/useApi.js";
 import { useFilters } from "../components/Layout.jsx";
 import StatCard from "../components/StatCard.jsx";
 import TrafficChart from "../components/TrafficChart.jsx";
-import DataTable from "../components/DataTable.jsx";
+import CountryList from "../components/CountryList.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import { ErrorState, NotAvailable } from "../components/StateViews.jsx";
 import { PageSkeleton, SkeletonTable, Sk } from "../components/Skeleton.jsx";
@@ -50,16 +50,9 @@ export default function Dashboard() {
 
       <div className="twocol">
         <div className="card">
-          <h3>Countries</h3>
-          {co.loading ? <SkeletonTable rows={6} cols={3} /> : co.error ? <ErrorState message={co.error} /> : (
-            <DataTable
-              columns={[
-                { key: "country", label: "Country" },
-                { key: "requests", label: "Requests", render: (r) => fmtNumber(r.requests) },
-                { key: "bandwidthBytes", label: "Bandwidth", render: (r) => fmtBytes(r.bandwidthBytes) },
-              ]}
-              rows={co.data?.rows || []}
-            />
+          <h3>Countries <span className="sub">by requests</span></h3>
+          {co.loading ? <SkeletonTable rows={6} cols={2} /> : co.error ? <ErrorState message={co.error} /> : (
+            <CountryList rows={co.data?.rows || []} />
           )}
           <p className="foot">Cities: <NotAvailable note={co.data?.cities?.note} /></p>
         </div>
