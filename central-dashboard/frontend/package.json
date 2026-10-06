@@ -11,13 +11,10 @@
     "deploy": "npm run build && wrangler deploy --config ../backend-worker/wrangler.toml"
   },
   "dependencies": {
-    "d3-geo": "^3.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0",
-    "recharts": "^2.12.7",
-    "topojson-client": "^3.1.0",
-    "world-atlas": "^2.0.2"
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
