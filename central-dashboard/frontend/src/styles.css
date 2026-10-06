@@ -134,7 +134,10 @@ body {
 }
 
 .navlabel {
-  transition: opacity .18s ease;
+  overflow: hidden;
+  max-width: 200px;
+  white-space: nowrap;
+  transition: opacity .18s ease, max-width .26s cubic-bezier(.4, 0, .2, 1);
 }
 
 .navitem:hover {
@@ -155,6 +158,7 @@ body {
 
 .sidebar.collapsed .navlabel {
   opacity: 0;
+  max-width: 0;
 }
 
 .acct {
