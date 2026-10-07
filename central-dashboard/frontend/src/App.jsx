@@ -1,6 +1,8 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { LiveProvider } from "./lib/live.jsx";
+import { isAuthed, clearAuth, UNAUTHORIZED_EVENT } from "./lib/auth.js";
+import Login from "./pages/Login.jsx";
 import Layout from "./components/Layout.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Projects from "./pages/Projects.jsx";
@@ -41,6 +43,20 @@ export function useFiltersFromLocation(search) {
 }
 
 export default function App() {
+  // Show the login page until a valid credential is stored; any /api 401 (from a
+  // live poll or an expired/rotated password) drops back to the login page.
+  const [authed, setAuthed] = useState(() => isAuthed());
+  useEffect(() => {
+    const onUnauthorized = () => {
+      clearAuth();
+      setAuthed(false);
+    };
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, []);
+
+  if (!authed) return <Login onSuccess={() => setAuthed(true)} />;
+
   return (
     <LiveProvider>
       <Routes>

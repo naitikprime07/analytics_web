@@ -9,8 +9,9 @@
  *   /api/analytics/errors    /api/analytics/workers
  * Query params for analytics: project= | domain= | from= | to= | preset= | granularity=
  *
- * NO D1 / NO R2 / NO database. Auth via HTTP Basic (DASHBOARD_PASSWORD secret) on
- * every route except the public POST /api/track ingest.
+ * NO D1 / NO R2 / NO database. The dashboard UI is served publicly and shows an
+ * in-app login page; every /api route is guarded by HTTP Basic (DASHBOARD_PASSWORD
+ * secret) except the public POST /api/track ingest.
  */
 
 import { checkBasicAuth } from "./auth.js";
@@ -67,24 +68,25 @@ export default {
       return env.ASSETS.fetch(request);
     }
 
+    // ---- Dashboard UI (React SPA + assets) is served PUBLICLY, BEFORE the API
+    // auth gate. The SPA shows its own login page and calls /api/* with an
+    // `Authorization: Basic` header. No secrets ship in the bundle (the CF token
+    // stays server-side), so exposing the shell is safe; every DATA route below
+    // still requires Basic Auth. run_worker_first=true lets us gate here, and
+    // not_found_handling=single-page-application serves index.html for deep
+    // client routes (e.g. /journey).
+    if (!path.startsWith("/api")) {
+      return env.ASSETS.fetch(request);
+    }
+
     try {
-      // ---- Auth: HTTP Basic (replaces Cloudflare Access) ----
-      // REQUIRE_ACCESS is kept as the flag name; it now means "enforce the Basic Auth
-      // check". /api/track is handled ABOVE (public) and never reaches this gate.
-      // Every other request is checked - including localhost - so local dev reads
-      // DASHBOARD_PASSWORD from .dev.vars (test with: curl -u admin:<pw> ...).
+      // ---- Auth: HTTP Basic guards every /api read/admin route ----
+      // (/api/track is handled ABOVE as public ingest and never reaches here.)
+      // REQUIRE_ACCESS is the flag name; local dev reads DASHBOARD_PASSWORD from
+      // .dev.vars (test with: curl -u admin:<pw> ...).
       if (env.REQUIRE_ACCESS === "true") {
         const denied = checkBasicAuth(request, env, cors);
         if (denied) return denied;
-      }
-
-      // ---- Non-API paths -> serve the dashboard UI from Workers static assets ----
-      // Same origin as the API, so the Basic Auth session covers the SPA and its
-      // relative /api fetches. run_worker_first=true means this Worker gates asset
-      // requests too; not_found_handling=single-page-application serves index.html
-      // for client-side deep routes (e.g. /journey).
-      if (!path.startsWith("/api")) {
-        return env.ASSETS.fetch(request);
       }
 
       if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID) {

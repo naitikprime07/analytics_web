@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/client.js";
 import { useFiltersFromLocation } from "../App.jsx";
 import { LiveBadge } from "../lib/live.jsx";
+import { logout } from "../lib/auth.js";
 import Icon from "./icons.jsx";
 
 const FiltersContext = createContext({});
@@ -183,7 +184,10 @@ export default function Layout() {
             <div className="acct-body">
               {loadErr && <div className="acct-err">Resource load failed: {loadErr}</div>}
               {account && <div className="acct-name">{account.name}</div>}
-              <div className="acct-hint">Private admin · Basic Auth</div>
+              <div className="acct-hint">Signed in · Cloudflare admin</div>
+              <button type="button" className="acct-signout" onClick={logout} title="Sign out">
+                Sign out
+              </button>
             </div>
           </div>
         </aside>

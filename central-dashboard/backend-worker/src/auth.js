@@ -11,16 +11,15 @@
  *
  * FAIL CLOSED: if DASHBOARD_PASSWORD is not configured, every protected request is
  * denied (503) - auth is never silently skipped. A missing / malformed / wrong
- * credential returns 401 + WWW-Authenticate so a same-origin dashboard navigation
- * triggers the browser's native login box.
+ * credential returns a JSON 401 (deliberately WITHOUT a WWW-Authenticate header),
+ * which the dashboard's in-app login page handles - the browser's native Basic Auth
+ * box never pops up.
  */
-
-const REALM = 'Basic realm="Central Analytics Dashboard", charset="UTF-8"';
 
 function challenge(cors, { status, message }) {
   const headers = { ...cors, "Content-Type": "application/json" };
-  // Only advertise the scheme on 401 (a real credential challenge). 503 = misconfigured.
-  if (status === 401) headers["WWW-Authenticate"] = REALM;
+  // No WWW-Authenticate on purpose: the SPA shows its own login screen on a 401,
+  // so we must not advertise the scheme and trigger the browser's native prompt.
   return new Response(JSON.stringify({ success: false, error: message }), { status, headers });
 }
 

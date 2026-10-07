@@ -1,15 +1,23 @@
 // Frontend API client - SUDHU relative /api/* call kare (no secrets, no CF token).
 // Prod mate Worker same-origin route par hase (custom domain/route) ke
 // VITE_API_BASE te set karo. Local dev mate vite proxy /api -> :8787 vapraay.
+import { getAuthValue, notifyUnauthorized } from "../lib/auth.js";
+
 const BASE = import.meta.env.VITE_API_BASE || "";
 
 async function get(path, params = {}) {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v) q.set(k, v);
   const qs = q.toString();
-  const res = await fetch(`${BASE}${path}${qs ? "?" + qs : ""}`, {
-    headers: { accept: "application/json" },
-  });
+  const headers = { accept: "application/json" };
+  const auth = getAuthValue(); // Basic credential set by the login page
+  if (auth) headers.Authorization = "Basic " + auth;
+  const res = await fetch(`${BASE}${path}${qs ? "?" + qs : ""}`, { headers });
+  if (res.status === 401) {
+    // stored password is missing/wrong -> let the app fall back to the login page
+    notifyUnauthorized();
+    throw new Error("Unauthorized");
+  }
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
